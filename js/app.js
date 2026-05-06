@@ -16,6 +16,7 @@ const state = {
   buildingCacheKey: "",
   localReviews: loadLocalReviews(),
   resizeTimer: null,
+  resizeFrame: null,
   searchTimer: null
 };
 
@@ -45,7 +46,6 @@ async function init() {
   bindUI();
   attachMapStabiliser();
   renderSearchResults("");
-  invalidateMapSize("initial load");
 }
 
 function cacheElements() {
@@ -85,23 +85,36 @@ async function loadData() {
 function initMap() {
   const center = CONFIG.defaultMapCenter || [-41.29484, 174.77885];
   const zoom = CONFIG.defaultZoom || 17;
+  const bounds = CONFIG.mapBounds || [[-47.8, 165.5], [-33.8, 179.5]];
 
   state.map = L.map("map", {
     zoomControl: false,
     scrollWheelZoom: true,
-    preferCanvas: true,
-    zoomAnimation: true,
+    doubleClickZoom: true,
+    dragging: true,
+    inertia: true,
+    preferCanvas: false,
+    zoomAnimation: false,
     fadeAnimation: false,
-    markerZoomAnimation: true,
-    maxBoundsViscosity: 0.15
+    markerZoomAnimation: false,
+    zoomSnap: 0.25,
+    zoomDelta: 0.5,
+    wheelPxPerZoomLevel: 95,
+    worldCopyJump: false,
+    maxBounds: bounds,
+    maxBoundsViscosity: 0.85
   }).setView(center, zoom);
 
   L.control.zoom({ position: "bottomright" }).addTo(state.map);
 
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    minZoom: 5,
     maxZoom: 20,
+    noWrap: true,
     updateWhenIdle: true,
+    updateWhenZooming: false,
     keepBuffer: 4,
+    crossOrigin: true,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(state.map);
 
@@ -113,8 +126,10 @@ function initMap() {
   state.map.on("click", handleMapClick);
   state.map.on("moveend zoomend", scheduleVisibleBuildingLoad);
   state.map.whenReady(() => {
+    invalidateMapSize("map ready");
     scheduleVisibleBuildingLoad();
-    window.setTimeout(scheduleVisibleBuildingLoad, 600);
+    window.setTimeout(() => invalidateMapSize("map settled"), 250);
+    window.setTimeout(scheduleVisibleBuildingLoad, 700);
   });
 }
 
@@ -122,35 +137,28 @@ function initMap() {
 function attachMapStabiliser() {
   if (!state.map || !els.map) return;
 
-  const schedule = () => invalidateMapSize("layout changed");
+  const schedule = () => {
+    window.clearTimeout(state.resizeTimer);
+    state.resizeTimer = window.setTimeout(() => invalidateMapSize("viewport changed"), 140);
+  };
 
   window.addEventListener("resize", schedule, { passive: true });
+  window.addEventListener("orientationchange", schedule, { passive: true });
   window.addEventListener("load", () => invalidateMapSize("window loaded"), { once: true });
 
-  if ("ResizeObserver" in window) {
-    const observer = new ResizeObserver(schedule);
-    observer.observe(els.map);
-    observer.observe(document.querySelector(".map-panel"));
-  }
-
-  if ("IntersectionObserver" in window) {
-    const observer = new IntersectionObserver(entries => {
-      if (entries.some(entry => entry.isIntersecting)) invalidateMapSize("map visible");
-    }, { threshold: 0.1 });
-    observer.observe(els.map);
-  }
-
-  [60, 180, 420, 900].forEach(delay => {
+  // Run a few one-off checks after page paint. Do not observe the map itself —
+  // constantly invalidating during tile movement is what causes the visible tile shear.
+  [80, 280, 800].forEach(delay => {
     window.setTimeout(() => invalidateMapSize(`settle ${delay}`), delay);
   });
 }
 
 function invalidateMapSize(reason = "") {
   if (!state.map) return;
-  window.clearTimeout(state.resizeTimer);
-  state.resizeTimer = window.setTimeout(() => {
+  if (state.resizeFrame) window.cancelAnimationFrame(state.resizeFrame);
+  state.resizeFrame = window.requestAnimationFrame(() => {
     state.map.invalidateSize({ animate: false, pan: false });
-  }, 40);
+  });
 }
 
 function scrollToMap() {
@@ -197,7 +205,7 @@ async function handleMapClick(event) {
     const building = await findNearbyBuilding(lat, lng);
     const selected = building || createManualSelection(lat, lng);
     selectFlat(selected);
-    setStatus(building ? "Nearest building selected. Hover buildings to see their exact mapped boundary." : "No mapped building boundary found nearby, so Flatwise selected this map point instead.");
+    setStatus(building ? "Nearest building selected. Hover buildings to see their exact mapped boundary." : "No mapped building footprint found nearby, so Flatwise selected this map point instead.");
   } catch (error) {
     console.warn(error);
     const selected = createManualSelection(lat, lng);
@@ -209,7 +217,7 @@ async function handleMapClick(event) {
 function scheduleVisibleBuildingLoad() {
   if (!state.map) return;
   window.clearTimeout(state.buildingFetchTimer);
-  state.buildingFetchTimer = window.setTimeout(loadVisibleBuildings, 420);
+  state.buildingFetchTimer = window.setTimeout(loadVisibleBuildings, 650);
 }
 
 async function loadVisibleBuildings() {
@@ -286,7 +294,7 @@ function renderBuildingBoundaries(elements) {
       polygon.bringToFront();
       els.map.classList.add("is-hovering-building");
       const name = flat.name || "mapped building";
-      setStatus(`Hovering ${name}. Click to review this exact mapped property boundary.`);
+      setStatus(`Hovering ${name}. Click to review this mapped building footprint.`);
     });
 
     polygon.on("mouseout", () => {
@@ -297,7 +305,7 @@ function renderBuildingBoundaries(elements) {
     polygon.on("click", event => {
       if (event.originalEvent) L.DomEvent.stopPropagation(event.originalEvent);
       selectFlat(flat, polygon);
-      setStatus("Building boundary selected. The highlighted outline is the property/building shape from OpenStreetMap.");
+      setStatus("Building boundary selected. The highlighted outline is the mapped building footprint from OpenStreetMap.");
     });
 
     polygon.addTo(state.buildingLayer);
@@ -310,7 +318,7 @@ function renderBuildingBoundaries(elements) {
   }
 
   if (count) {
-    setStatus(`${count} mapped building boundaries loaded. Hover a property to highlight it, then click to review it.`);
+    setStatus(`${count} mapped building boundaries loaded. Hover a building to highlight its footprint, then click to review it.`);
   } else {
     setStatus("No building boundaries found in this view. Try zooming in or moving to another street.");
   }
@@ -416,7 +424,6 @@ function selectFlat(flat, buildingPolygon = null) {
   els.detailsEmpty.classList.add("hidden");
   els.detailsContent.classList.remove("hidden");
   invalidateMapSize("selected flat");
-  window.setTimeout(scrollToDetails, 120);
 }
 
 function setSelectedBuildingBoundary(flat, explicitPolygon = null) {
@@ -629,14 +636,14 @@ function bindUI() {
   document.getElementById("openDemoFlat").addEventListener("click", () => {
     const demo = state.sampleReviews[0];
     state.map.setView([demo.lat, demo.lng], 18, { animate: false });
-    invalidateMapSize("open demo flat");
+    window.setTimeout(() => invalidateMapSize("open demo flat"), 80);
     selectFlat({ ...demo, source: "demo", osmKey: demo.osmKey || `demo/${demo.id}` });
     scrollToMap();
   });
 
   document.getElementById("locateWellington").addEventListener("click", () => {
     state.map.setView(CONFIG.defaultMapCenter || [-41.29484, 174.77885], CONFIG.defaultZoom || 17, { animate: false });
-    invalidateMapSize("locate Wellington");
+    window.setTimeout(() => invalidateMapSize("locate Wellington"), 80);
   });
   document.getElementById("reviewSelected").addEventListener("click", openReviewDialog);
   document.getElementById("writeReviewInline").addEventListener("click", openReviewDialog);
@@ -646,7 +653,7 @@ function bindUI() {
   els.searchInput.addEventListener("input", event => {
     window.clearTimeout(state.searchTimer);
     const value = event.target.value;
-    state.searchTimer = window.setTimeout(() => renderSearchResults(value), 180);
+    state.searchTimer = window.setTimeout(() => renderSearchResults(value), 240);
   });
 
   els.searchInput.addEventListener("keydown", event => {
@@ -679,8 +686,8 @@ function renderSearchResults(query) {
 
   if (matches.length) {
     const group = L.featureGroup(matches.map(item => item.marker));
-    state.map.fitBounds(group.getBounds().pad(0.28), { animate: false });
-    invalidateMapSize("search fit bounds");
+    state.map.fitBounds(group.getBounds().pad(0.28), { animate: false, padding: [38, 38] });
+    window.setTimeout(() => invalidateMapSize("search fit bounds"), 80);
     setStatus(`${matches.length} demo flat${matches.length === 1 ? "" : "s"} matched your search.`);
   } else {
     setStatus("No demo flats matched. Press Enter to search OpenStreetMap for that address, or click any map building to select it.");

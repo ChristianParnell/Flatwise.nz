@@ -6,6 +6,10 @@ window.FLATWISE_CONFIG = {
   appName: "Flatwise NZ",
   defaultMapCenter: [-41.29484, 174.77885],
   defaultZoom: 17,
+
+  // Keeps the demo map from feeling endless while still allowing NZ-wide browsing.
+  mapBounds: [[-47.8, 165.5], [-33.8, 179.5]],
+
   overpassEndpoint: "https://overpass-api.de/api/interpreter",
   overpassSearchRadiusMeters: 28,
   minimumBuildingZoom: 16,

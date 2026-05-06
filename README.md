@@ -1,61 +1,37 @@
 # Flatwise NZ — GitHub Pages Prototype
 
-Flatwise is a static GitHub Pages-ready website prototype for reviewing rental flats. It includes:
+Flatwise is a static, GitHub Pages-ready prototype for a tenant review map. It uses Leaflet with OpenStreetMap tiles, Overpass building-footprint lookup, editable rent benchmark data, sample reviews, and browser-based review storage.
 
-- Leaflet + OpenStreetMap map
-- Fixed-size boxed map so the page does not stretch forever
-- Hover-to-highlight OpenStreetMap building boundaries
-- Click-to-select a mapped building/property outline using the Overpass API
-- Demo flat markers around Wellington
-- Information/review panel below the map
-- Review form using the Flatwise rating categories
-- Browser-based localStorage review saving
-- Optional Google Street View Static API image support
-- Editable rent benchmark JSON file
+## What's included
 
-## How to run locally
+- Stable full-width map box using OpenStreetMap + Leaflet
+- NZ-bounded map view so the map does not feel endless
+- Search demo flats/suburbs, or press Enter to search an address with OpenStreetMap Nominatim
+- Building-footprint loading from Overpass when zoomed in
+- Hover over a mapped building to highlight its footprint
+- Click a building footprint to select it for review
+- Details and review panel below the map
+- Editable rent benchmark data in `data/rent-data.json`
+- Sample reviews in `data/sample-reviews.json`
+- New reviews saved in the user's browser using `localStorage`
+- Optional Google Street View image support through `js/config.js`
 
-Because the site loads JSON files, run it through a local server instead of double-clicking `index.html`.
-
-```bash
-python -m http.server 8080
-```
-
-Then open:
-
-```text
-http://localhost:8080
-```
-
-## How to host on GitHub Pages
+## Hosting on GitHub Pages
 
 1. Create a new GitHub repository.
-2. Upload all files from this folder.
+2. Upload all files from this folder into the repository root.
 3. Go to **Settings → Pages**.
 4. Under **Build and deployment**, choose **Deploy from a branch**.
-5. Choose your `main` branch and `/root`.
+5. Select your `main` branch and `/root`.
 6. Save.
-7. Open the GitHub Pages URL once deployment finishes.
 
-## How the map works
+Your site will publish at your GitHub Pages URL.
 
-The map uses Leaflet and OpenStreetMap tiles. At close zoom levels, the site queries Overpass for visible OSM building footprints and draws them as interactive outlines over the map. Hovering a mapped building highlights its boundary. Clicking that boundary selects the flat/building for review.
+## Optional Street View images
 
-If the user clicks an area where there is no loaded building outline, the site falls back to a nearby Overpass building lookup. If none is found, the clicked point is still selectable so the prototype remains usable.
+The prototype works without a Google key. To enable real street image previews:
 
-The search box filters demo flats as you type. To search a real NZ address through OpenStreetMap/Nominatim, type the address and press Enter. This is deliberately manual rather than automatic, so the site avoids hammering public OSM services.
-
-This version also includes a boxed fixed-height map, no side panel squeezing the tile grid, repeated `invalidateSize()` calls after layout/scroll changes, and CSS guards so map tiles do not inherit unwanted image sizing. OSM does not provide legal property parcel boundaries everywhere, so the prototype highlights mapped building footprints rather than official cadastral property lines.
-
-## Rent data
-
-The file `data/rent-data.json` contains editable demo rent benchmarks for Wellington suburbs. For a real build, replace this file with official MBIE / Tenancy Services market rent data, or connect a backend/serverless function to the Market Rent API.
-
-## Images
-
-By default, the site shows a polished placeholder image panel. To enable real exterior street images:
-
-1. Create a Google Maps Platform browser API key.
+1. Create a Google Maps Platform browser key.
 2. Restrict the key to your GitHub Pages domain.
 3. Restrict the key to the Street View Static API only.
 4. Open `js/config.js`.
@@ -64,12 +40,14 @@ By default, the site shows a polished placeholder image panel. To enable real ex
 ```js
 window.FLATWISE_CONFIG = {
   enableGoogleStreetView: true,
-  googleStreetViewApiKey: "YOUR_RESTRICTED_KEY_HERE"
+  googleStreetViewApiKey: "YOUR_RESTRICTED_KEY"
 };
 ```
 
-Do not put private or unrestricted keys in a public GitHub repository.
+Do not put unrestricted private keys into a public GitHub repository.
 
-## Prototype privacy note
+## Important prototype note
 
-This MVP avoids showing exact addresses by default. Reviews should focus on living conditions, not private individuals. A real public version would need moderation, reporting, image rules, privacy controls, and a proper backend database such as Supabase or Firebase.
+OpenStreetMap usually provides mapped building footprints, not legal property parcel boundaries. For Flatwise, this means the highlighted shape should be treated as a building-location selection, not an official cadastral/property boundary.
+
+For a real public version, use a backend such as Supabase/Firebase, moderation, report tools, privacy rules, and official MBIE/Tenancy Services market-rent data.
