@@ -1,13 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Flatwise logo">
-  <defs>
-    <linearGradient id="g" x1="16" x2="80" y1="10" y2="86" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#1f7a4f"/>
-      <stop offset="1" stop-color="#101312"/>
-    </linearGradient>
-  </defs>
-  <rect width="96" height="96" rx="26" fill="#fffaf0"/>
-  <path d="M18 48.5 48 22l30 26.5v27.8c0 3.2-2.6 5.7-5.7 5.7H23.7c-3.1 0-5.7-2.5-5.7-5.7V48.5Z" fill="url(#g)"/>
-  <path d="M34 82V56h28v26" fill="#fffaf0" opacity=".96"/>
-  <path d="M30 48.2 48 32.4l18 15.8" fill="none" stroke="#fffaf0" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="70" cy="24" r="9" fill="#b46b21"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Flatwise logo">
+  <rect width="64" height="64" rx="16" fill="#fffaf0"/>
+  <path d="M11 31.5 32 14l21 17.5v22a2.5 2.5 0 0 1-2.5 2.5H13.5A2.5 2.5 0 0 1 11 53.5z" fill="#1f7a4f"/>
+  <path d="M20 56V34h24v22" fill="#fffaf0" opacity=".94"/>
+  <path d="M25 56V42h14v14" fill="#101312" opacity=".92"/>
+  <circle cx="47" cy="16" r="6" fill="#b46b21"/>
+  <path d="M32 14 11 31.5M32 14l21 17.5" fill="none" stroke="#101312" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

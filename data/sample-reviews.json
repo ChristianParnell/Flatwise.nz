@@ -1,90 +1,46 @@
 [
   {
-    "id": "demo-te-aro-jessie",
-    "osmKey": "demo/demo-te-aro-jessie",
-    "name": "Jessie Street area flat",
+    "id": "demo-te-aro-1",
+    "name": "Demo Te Aro flat",
     "suburb": "Te Aro",
     "lat": -41.29484,
     "lng": 174.77885,
+    "osmKey": "demo/te-aro-1",
     "ratings": {
-      "rentValue": 3,
+      "rentValue": 2,
       "cleanliness": 3,
       "warmthDryness": 2,
-      "noise": 3,
-      "safety": 4,
+      "noise": 4,
+      "safety": 3,
       "flatmateVibe": 4,
       "communication": 2,
       "locationScore": 5,
       "pressureLevel": 2,
       "liveability": 3
     },
-    "note": "Central and convenient, but the viewing felt rushed and the room showed signs of winter damp around the windows.",
-    "createdAt": "2026-05-01T09:40:00.000Z"
+    "note": "Good central location, but colder than it looked at the viewing. Demo review for presentation only.",
+    "createdAt": "2026-04-18T10:00:00.000Z"
   },
   {
-    "id": "demo-aro",
-    "osmKey": "demo/demo-aro",
-    "name": "Aro Valley character flat",
-    "suburb": "Aro Valley",
-    "lat": -41.29425,
-    "lng": 174.76002,
-    "ratings": {
-      "rentValue": 4,
-      "cleanliness": 4,
-      "warmthDryness": 4,
-      "noise": 3,
-      "safety": 4,
-      "flatmateVibe": 5,
-      "communication": 4,
-      "locationScore": 4,
-      "pressureLevel": 5,
-      "liveability": 4
-    },
-    "note": "Good flatmate vibe, decent insulation, and no strange pressure during the viewing. Older house, but looked cared for.",
-    "createdAt": "2026-04-22T21:15:00.000Z"
-  },
-  {
-    "id": "demo-kelburn",
-    "osmKey": "demo/demo-kelburn",
-    "name": "Kelburn hill flat",
+    "id": "demo-kelburn-1",
+    "name": "Demo Kelburn flat",
     "suburb": "Kelburn",
-    "lat": -41.28905,
-    "lng": 174.7677,
+    "lat": -41.2889,
+    "lng": 174.768,
+    "osmKey": "demo/kelburn-1",
     "ratings": {
       "rentValue": 3,
-      "cleanliness": 2,
-      "warmthDryness": 2,
-      "noise": 4,
-      "safety": 4,
-      "flatmateVibe": 3,
-      "communication": 2,
-      "locationScore": 5,
-      "pressureLevel": 3,
-      "liveability": 3
-    },
-    "note": "Amazing location for uni, but the shared spaces were rough and the landlord communication felt vague around maintenance.",
-    "createdAt": "2026-04-11T10:05:00.000Z"
-  },
-  {
-    "id": "demo-newtown",
-    "osmKey": "demo/demo-newtown",
-    "name": "Newtown sunny room",
-    "suburb": "Newtown",
-    "lat": -41.31325,
-    "lng": 174.7801,
-    "ratings": {
-      "rentValue": 5,
       "cleanliness": 4,
-      "warmthDryness": 4,
+      "warmthDryness": 3,
       "noise": 3,
       "safety": 4,
       "flatmateVibe": 4,
-      "communication": 5,
-      "locationScore": 4,
-      "pressureLevel": 5,
-      "liveability": 5
+      "communication": 4,
+      "locationScore": 5,
+      "pressureLevel": 4,
+      "liveability": 4
     },
-    "note": "Fair rent, honest communication, and the house felt much drier than most places viewed in the area.",
-    "createdAt": "2026-03-29T07:30:00.000Z"
+    "note": "Solid place overall. A bit expensive, but dry enough and close to uni. Demo review for presentation only.",
+    "createdAt": "2026-04-10T10:00:00.000Z"
   }
 ]

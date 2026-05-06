@@ -1,23 +1,18 @@
-// Flatwise configuration
-// GitHub Pages note: do not put private secrets here.
-// If you use Google Street View, create a browser key restricted to your GitHub Pages domain
-// and restrict it to the Street View Static API only.
 window.FLATWISE_CONFIG = {
-  appName: "Flatwise NZ",
   defaultMapCenter: [-41.29484, 174.77885],
   defaultZoom: 17,
-
-  // Keeps the demo map from feeling endless while still allowing NZ-wide browsing.
+  minBoundaryZoom: 16,
+  maxBoundaryZoom: 19,
   mapBounds: [[-47.8, 165.5], [-33.8, 179.5]],
 
-  overpassEndpoint: "https://overpass-api.de/api/interpreter",
-  overpassSearchRadiusMeters: 28,
-  minimumBuildingZoom: 16,
+  osmTileUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
 
-  // Optional. Leave blank and the site will show a polished built-in placeholder instead.
-  googleStreetViewApiKey: "",
+  linzParcelsEndpoint: "https://services.arcgis.com/xdsHIIxuCWByZiCB/arcgis/rest/services/LINZ_NZ_Primary_Parcels/FeatureServer/0/query",
+  linzBuildingsEndpoint: "https://services.arcgis.com/xdsHIIxuCWByZiCB/arcgis/rest/services/LINZ_NZ_Building_Outlines/FeatureServer/0/query",
+
+  // Optional: set to true and add a restricted browser key if you want Street View thumbnails.
   enableGoogleStreetView: false,
+  googleStreetViewApiKey: "",
 
-  // For privacy, the UI avoids showing exact addresses by default.
   showExactAddress: false
 };
