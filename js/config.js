@@ -7,7 +7,8 @@ window.FLATWISE_CONFIG = {
   defaultMapCenter: [-41.29484, 174.77885],
   defaultZoom: 17,
   overpassEndpoint: "https://overpass-api.de/api/interpreter",
-  overpassSearchRadiusMeters: 22,
+  overpassSearchRadiusMeters: 28,
+  minimumBuildingZoom: 16,
 
   // Optional. Leave blank and the site will show a polished built-in placeholder instead.
   googleStreetViewApiKey: "",

@@ -7,6 +7,13 @@ const state = {
   sampleReviews: [],
   rentData: [],
   demoMarkers: [],
+  buildingLayer: null,
+  buildingLookup: new Map(),
+  selectedBuildingLayer: null,
+  hoveredBuildingLayer: null,
+  buildingFetchController: null,
+  buildingFetchTimer: null,
+  buildingCacheKey: "",
   localReviews: loadLocalReviews(),
   resizeTimer: null,
   searchTimer: null
@@ -85,7 +92,8 @@ function initMap() {
     preferCanvas: true,
     zoomAnimation: true,
     fadeAnimation: false,
-    markerZoomAnimation: true
+    markerZoomAnimation: true,
+    maxBoundsViscosity: 0.15
   }).setView(center, zoom);
 
   L.control.zoom({ position: "bottomright" }).addTo(state.map);
@@ -97,7 +105,17 @@ function initMap() {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(state.map);
 
+  state.map.createPane("buildingPane");
+  state.map.getPane("buildingPane").style.zIndex = 425;
+  state.map.getPane("buildingPane").style.pointerEvents = "auto";
+  state.buildingLayer = L.layerGroup().addTo(state.map);
+
   state.map.on("click", handleMapClick);
+  state.map.on("moveend zoomend", scheduleVisibleBuildingLoad);
+  state.map.whenReady(() => {
+    scheduleVisibleBuildingLoad();
+    window.setTimeout(scheduleVisibleBuildingLoad, 600);
+  });
 }
 
 
@@ -169,33 +187,174 @@ function addDemoMarkers() {
 }
 
 async function handleMapClick(event) {
+  // If the click already landed on a building polygon, that polygon's own click
+  // handler handles the selection. This fallback keeps the app usable in areas
+  // where OSM does not have building outlines yet.
   const { lat, lng } = event.latlng;
-  setStatus("Looking for a nearby building on OpenStreetMap…");
+  setStatus("Looking for the nearest mapped building boundary…");
 
   try {
     const building = await findNearbyBuilding(lat, lng);
     const selected = building || createManualSelection(lat, lng);
     selectFlat(selected);
-    setStatus(building ? "Building selected. Add a review or compare local rent guidance." : "No OSM building found nearby, so Flatwise selected this map point instead.");
+    setStatus(building ? "Nearest building selected. Hover buildings to see their exact mapped boundary." : "No mapped building boundary found nearby, so Flatwise selected this map point instead.");
   } catch (error) {
     console.warn(error);
     const selected = createManualSelection(lat, lng);
     selectFlat(selected);
-    setStatus("Overpass could not be reached, so Flatwise selected this map point instead. The rest of the prototype still works.");
+    setStatus("OpenStreetMap building lookup could not be reached, so Flatwise selected this map point instead.");
   }
 }
 
+function scheduleVisibleBuildingLoad() {
+  if (!state.map) return;
+  window.clearTimeout(state.buildingFetchTimer);
+  state.buildingFetchTimer = window.setTimeout(loadVisibleBuildings, 420);
+}
+
+async function loadVisibleBuildings() {
+  if (!state.map || !state.buildingLayer) return;
+
+  const zoom = state.map.getZoom();
+  if (zoom < Number(CONFIG.minimumBuildingZoom || 16)) {
+    state.buildingLayer.clearLayers();
+    state.buildingLookup.clear();
+    state.buildingCacheKey = "";
+    setStatus("Zoom in closer to load individual property/building boundaries.");
+    return;
+  }
+
+  const bounds = state.map.getBounds().pad(0.12);
+  const south = bounds.getSouth().toFixed(6);
+  const west = bounds.getWest().toFixed(6);
+  const north = bounds.getNorth().toFixed(6);
+  const east = bounds.getEast().toFixed(6);
+  const cacheKey = `${zoom}:${south},${west},${north},${east}`;
+  if (cacheKey === state.buildingCacheKey) return;
+  state.buildingCacheKey = cacheKey;
+
+  if (state.buildingFetchController) state.buildingFetchController.abort();
+  state.buildingFetchController = new AbortController();
+
+  const query = `
+    [out:json][timeout:15];
+    way["building"](${south},${west},${north},${east});
+    out tags center geom;
+  `;
+
+  try {
+    const url = `${CONFIG.overpassEndpoint}?data=${encodeURIComponent(query)}`;
+    const response = await fetch(url, { signal: state.buildingFetchController.signal });
+    if (!response.ok) throw new Error(`Overpass request failed: ${response.status}`);
+    const data = await response.json();
+    renderBuildingBoundaries(data.elements || []);
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    console.warn(error);
+    setStatus("Could not load building boundaries right now. You can still click the map to select a location.");
+  }
+}
+
+function renderBuildingBoundaries(elements) {
+  state.buildingLayer.clearLayers();
+  state.buildingLookup.clear();
+  state.selectedBuildingLayer = null;
+  state.hoveredBuildingLayer = null;
+
+  let count = 0;
+  elements.forEach(element => {
+    if (!Array.isArray(element.geometry) || element.geometry.length < 3) return;
+    const latlngs = element.geometry.map(point => [point.lat, point.lon]);
+    const flat = normaliseOsmElement(element, element.center?.lat || latlngs[0][0], element.center?.lon || latlngs[0][1]);
+    flat.boundary = latlngs;
+
+    const polygon = L.polygon(latlngs, {
+      ...buildingStyle("idle"),
+      pane: "buildingPane",
+      interactive: true
+    });
+
+    polygon.flatwiseKey = flat.osmKey;
+    polygon.flatwiseData = flat;
+
+    polygon.on("mouseover", () => {
+      if (state.hoveredBuildingLayer && state.hoveredBuildingLayer !== state.selectedBuildingLayer) {
+        state.hoveredBuildingLayer.setStyle(buildingStyle("idle"));
+      }
+      state.hoveredBuildingLayer = polygon;
+      polygon.setStyle(buildingStyle("hover"));
+      polygon.bringToFront();
+      els.map.classList.add("is-hovering-building");
+      const name = flat.name || "mapped building";
+      setStatus(`Hovering ${name}. Click to review this exact mapped property boundary.`);
+    });
+
+    polygon.on("mouseout", () => {
+      els.map.classList.remove("is-hovering-building");
+      if (polygon !== state.selectedBuildingLayer) polygon.setStyle(buildingStyle("idle"));
+    });
+
+    polygon.on("click", event => {
+      if (event.originalEvent) L.DomEvent.stopPropagation(event.originalEvent);
+      selectFlat(flat, polygon);
+      setStatus("Building boundary selected. The highlighted outline is the property/building shape from OpenStreetMap.");
+    });
+
+    polygon.addTo(state.buildingLayer);
+    state.buildingLookup.set(flat.osmKey, { flat, polygon });
+    count += 1;
+  });
+
+  if (state.selectedFlat) {
+    setSelectedBuildingBoundary(state.selectedFlat);
+  }
+
+  if (count) {
+    setStatus(`${count} mapped building boundaries loaded. Hover a property to highlight it, then click to review it.`);
+  } else {
+    setStatus("No building boundaries found in this view. Try zooming in or moving to another street.");
+  }
+}
+
+function buildingStyle(mode = "idle") {
+  if (mode === "selected") {
+    return {
+      color: "#101312",
+      weight: 3.2,
+      opacity: 0.95,
+      fillColor: "#1f7a4f",
+      fillOpacity: 0.34
+    };
+  }
+
+  if (mode === "hover") {
+    return {
+      color: "#1f7a4f",
+      weight: 3,
+      opacity: 0.95,
+      fillColor: "#1f7a4f",
+      fillOpacity: 0.22
+    };
+  }
+
+  return {
+    color: "#101312",
+    weight: 1,
+    opacity: 0.26,
+    fillColor: "#fffaf0",
+    fillOpacity: 0.05
+  };
+}
+
 async function findNearbyBuilding(lat, lng) {
-  const radius = Number(CONFIG.overpassSearchRadiusMeters || 22);
+  const radius = Number(CONFIG.overpassSearchRadiusMeters || 28);
   const query = `
     [out:json][timeout:12];
     (
       way(around:${radius},${lat},${lng})["building"];
-      relation(around:${radius},${lat},${lng})["building"];
       way(around:${radius},${lat},${lng})["addr:housenumber"];
-      relation(around:${radius},${lat},${lng})["addr:housenumber"];
     );
-    out center tags 10;
+    out tags center geom;
   `;
 
   const url = `${CONFIG.overpassEndpoint}?data=${encodeURIComponent(query)}`;
@@ -211,12 +370,13 @@ async function findNearbyBuilding(lat, lng) {
 }
 
 function normaliseOsmElement(element, fallbackLat, fallbackLng) {
-  const lat = element.center?.lat || element.lat || fallbackLat;
-  const lng = element.center?.lon || element.lon || fallbackLng;
+  const geometryCenter = Array.isArray(element.geometry) ? averageGeometryCenter(element.geometry) : null;
+  const lat = element.center?.lat || element.lat || geometryCenter?.lat || fallbackLat;
+  const lng = element.center?.lon || element.lon || geometryCenter?.lng || fallbackLng;
   const tags = element.tags || {};
   const road = tags["addr:street"] || tags.name || "Selected building";
   const houseNumber = tags["addr:housenumber"];
-  const suburb = inferSuburb(lat, lng, tags["addr:suburb"] || tags.suburb);
+  const suburb = inferSuburb(lat, lng, tags["addr:suburb"] || tags.suburb || tags["addr:city"]);
   const displayName = CONFIG.showExactAddress && houseNumber ? `${houseNumber} ${road}` : `${road} area`;
 
   return {
@@ -228,7 +388,7 @@ function normaliseOsmElement(element, fallbackLat, fallbackLng) {
     lat,
     lng,
     ratings: {},
-    note: "No Flatwise reviews yet. Be the first tenant voice for this location.",
+    note: "No Flatwise reviews yet. Be the first tenant voice for this mapped building.",
     tags
   };
 }
@@ -248,8 +408,9 @@ function createManualSelection(lat, lng) {
   };
 }
 
-function selectFlat(flat) {
+function selectFlat(flat, buildingPolygon = null) {
   state.selectedFlat = flat;
+  setSelectedBuildingBoundary(flat, buildingPolygon);
   placeSelectedMarker(flat);
   renderDetails(flat);
   els.detailsEmpty.classList.add("hidden");
@@ -258,10 +419,25 @@ function selectFlat(flat) {
   window.setTimeout(scrollToDetails, 120);
 }
 
+function setSelectedBuildingBoundary(flat, explicitPolygon = null) {
+  if (state.selectedBuildingLayer) {
+    state.selectedBuildingLayer.setStyle(buildingStyle("idle"));
+  }
+
+  const matched = explicitPolygon || state.buildingLookup.get(flat.osmKey)?.polygon || null;
+  state.selectedBuildingLayer = matched;
+
+  if (matched) {
+    matched.setStyle(buildingStyle("selected"));
+    matched.bringToFront();
+  }
+}
+
 function placeSelectedMarker(flat) {
   if (state.selectedMarker) state.selectedMarker.remove();
   state.selectedMarker = L.marker([flat.lat, flat.lng], {
-    icon: selectedMarkerIcon()
+    icon: selectedMarkerIcon(),
+    keyboard: false
   }).addTo(state.map);
   state.selectedMarker.bindPopup(`<strong>${escapeHtml(flat.name)}</strong><br><span class="popup-meta">Selected for review</span>`, { autoPan: false }).openPopup();
 }
@@ -538,16 +714,27 @@ async function searchAddress(query) {
     const result = results[0];
     const lat = Number(result.lat);
     const lng = Number(result.lon);
-    state.map.setView([lat, lng], 18, { animate: false });
+    state.map.setView([lat, lng], 19, { animate: false });
     invalidateMapSize("address search");
+    scheduleVisibleBuildingLoad();
 
     const building = await findNearbyBuilding(lat, lng);
     selectFlat(building || createManualSelection(lat, lng));
-    setStatus("Address found. Flatwise selected the closest building or map point for review.");
+    setStatus(building ? "Address found. Flatwise selected the closest mapped building boundary." : "Address found, but no mapped building boundary was available at that point.");
   } catch (error) {
     console.warn(error);
     setStatus("Address search could not be reached. You can still pan the map and click the building manually.");
   }
+}
+
+function averageGeometryCenter(geometry) {
+  if (!Array.isArray(geometry) || geometry.length === 0) return null;
+  const totals = geometry.reduce((acc, point) => {
+    acc.lat += Number(point.lat) || 0;
+    acc.lng += Number(point.lon) || 0;
+    return acc;
+  }, { lat: 0, lng: 0 });
+  return { lat: totals.lat / geometry.length, lng: totals.lng / geometry.length };
 }
 
 function inferSuburb(lat, lng, explicitName = "") {

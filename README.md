@@ -3,9 +3,11 @@
 Flatwise is a static GitHub Pages-ready website prototype for reviewing rental flats. It includes:
 
 - Leaflet + OpenStreetMap map
-- Click-to-select building/location using the Overpass API
+- Fixed-size boxed map so the page does not stretch forever
+- Hover-to-highlight OpenStreetMap building boundaries
+- Click-to-select a mapped building/property outline using the Overpass API
 - Demo flat markers around Wellington
-- Large full-width map with the information/review panel below it
+- Information/review panel below the map
 - Review form using the Flatwise rating categories
 - Browser-based localStorage review saving
 - Optional Google Street View Static API image support
@@ -37,11 +39,13 @@ http://localhost:8080
 
 ## How the map works
 
-The map uses Leaflet and OpenStreetMap tiles. When a user clicks the map, the site queries Overpass for a nearby OSM building or address object. If one is found, it becomes the selected flat location. If not, the clicked point is still selectable so the prototype remains usable.
+The map uses Leaflet and OpenStreetMap tiles. At close zoom levels, the site queries Overpass for visible OSM building footprints and draws them as interactive outlines over the map. Hovering a mapped building highlights its boundary. Clicking that boundary selects the flat/building for review.
+
+If the user clicks an area where there is no loaded building outline, the site falls back to a nearby Overpass building lookup. If none is found, the clicked point is still selectable so the prototype remains usable.
 
 The search box filters demo flats as you type. To search a real NZ address through OpenStreetMap/Nominatim, type the address and press Enter. This is deliberately manual rather than automatic, so the site avoids hammering public OSM services.
 
-This version also includes Leaflet layout stabilisers: a larger map, no side panel squeezing the tile grid, repeated `invalidateSize()` calls after layout/scroll changes, and CSS guards so map tiles do not inherit unwanted image sizing.
+This version also includes a boxed fixed-height map, no side panel squeezing the tile grid, repeated `invalidateSize()` calls after layout/scroll changes, and CSS guards so map tiles do not inherit unwanted image sizing. OSM does not provide legal property parcel boundaries everywhere, so the prototype highlights mapped building footprints rather than official cadastral property lines.
 
 ## Rent data
 
