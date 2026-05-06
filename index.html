@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Flatwise NZ helps future tenants compare flat reviews, official-style rent benchmarks, and location warnings before they move." />
+  <title>Flatwise NZ — Know Before You Move</title>
+  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="preconnect" href="https://tile.openstreetmap.org" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIINfQfyqHffEo9L1xLQvzTCT2uYpOY="
+    crossorigin=""
+  />
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar" aria-label="Flatwise header">
+      <a class="brand" href="#top" aria-label="Flatwise home">
+        <img src="assets/logo.svg" alt="" />
+        <span>
+          <strong>Flatwise</strong>
+          <small>Know before you move.</small>
+        </span>
+      </a>
+
+      <nav class="nav-actions" aria-label="Primary actions">
+        <button class="ghost-button" id="jumpToMap">Map</button>
+        <button class="ghost-button" id="jumpToHow">How it works</button>
+        <button class="primary-button" id="startReviewTop">Review a flat</button>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero-section" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Tenant warning map for Aotearoa flats</p>
+          <h1 id="hero-title">Click a building, check the rent benchmark, then leave a real flat review.</h1>
+          <p class="hero-text">
+            Flatwise is a GitHub Pages-ready prototype that combines OpenStreetMap building selection,
+            Wellington rent benchmark data, local reviews, and a clean review flow for future tenants.
+          </p>
+          <div class="hero-actions">
+            <button class="primary-button large" id="startReviewHero">Start on the map</button>
+            <button class="secondary-button large" id="openDemoFlat">Open a demo flat</button>
+          </div>
+          <div class="trust-row" aria-label="Flatwise features">
+            <span>Approximate locations</span>
+            <span>Structured ratings</span>
+            <span>Local browser storage</span>
+          </div>
+        </div>
+
+        <div class="hero-card" aria-label="Example review summary">
+          <div class="mini-map-card">
+            <span class="pin pin-one"></span>
+            <span class="pin pin-two"></span>
+            <span class="pin pin-three"></span>
+          </div>
+          <div class="hero-rating-card">
+            <div>
+              <span class="muted-label">Selected flat</span>
+              <h2>Jessie Street area</h2>
+            </div>
+            <strong class="rating-pill warning">3.2 / 5</strong>
+          </div>
+          <dl class="signal-grid">
+            <div><dt>Rent value</dt><dd>3/5</dd></div>
+            <div><dt>Warmth</dt><dd>2/5</dd></div>
+            <div><dt>Noise</dt><dd>4/5</dd></div>
+            <div><dt>Pressure</dt><dd>High</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <section class="map-section" id="mapArea" aria-labelledby="map-title">
+        <div class="section-header compact">
+          <p class="eyebrow">Interactive prototype</p>
+          <h2 id="map-title">Select a flat location</h2>
+          <p>
+            Click a building or street location on the map. Flatwise will try to identify the nearest
+            OpenStreetMap building, then show rent guidance and review options.
+          </p>
+        </div>
+
+        <div class="map-layout">
+          <section class="map-panel" aria-label="Map controls and interactive map">
+            <div class="map-toolbar">
+              <div class="search-wrap">
+                <label for="searchInput">Search demo flats or suburbs</label>
+                <div class="search-box">
+                  <input id="searchInput" type="search" placeholder="Try Te Aro, Kelburn, damp, noisy..." autocomplete="off" />
+                  <button id="clearSearch" class="icon-button" aria-label="Clear search">×</button>
+                </div>
+              </div>
+              <div class="toolbar-actions">
+                <button id="locateWellington" class="ghost-button">Wellington</button>
+                <button id="reviewSelected" class="primary-button">Review selected</button>
+              </div>
+            </div>
+
+            <div id="map" role="application" aria-label="OpenStreetMap map with clickable flat locations"></div>
+
+            <div class="map-status" id="mapStatus" role="status">
+              Click anywhere on the map to select a building. Demo flats are shown as coloured markers.
+            </div>
+          </section>
+
+          <aside class="details-panel" aria-live="polite" aria-label="Selected flat details">
+            <div class="details-empty" id="detailsEmpty">
+              <img src="assets/logo.svg" alt="" />
+              <h3>No flat selected yet</h3>
+              <p>Choose a demo marker or click a building on the map to open its review panel.</p>
+            </div>
+
+            <div class="details-content hidden" id="detailsContent">
+              <div class="photo-frame" id="photoFrame">
+                <div class="photo-placeholder">
+                  <span class="building-icon">⌂</span>
+                  <strong>Street image preview</strong>
+                  <small>Add a restricted Google Street View API key in <code>js/config.js</code> to display real street images.</small>
+                </div>
+              </div>
+
+              <div class="details-head">
+                <div>
+                  <p class="muted-label" id="selectedType">Selected location</p>
+                  <h3 id="selectedTitle">Flat location</h3>
+                  <p id="selectedSuburb">Wellington</p>
+                </div>
+                <strong class="rating-pill" id="selectedScore">No rating</strong>
+              </div>
+
+              <div class="info-strip">
+                <div>
+                  <span>Rent benchmark</span>
+                  <strong id="rentBenchmark">Not available</strong>
+                </div>
+                <div>
+                  <span>Reviews</span>
+                  <strong id="reviewCount">0</strong>
+                </div>
+              </div>
+
+              <div class="rent-card" id="rentCard">
+                <h4>Official-rent-data layer</h4>
+                <p id="rentDescription">This prototype uses editable sample rent data inspired by NZ market-rent style reporting.</p>
+              </div>
+
+              <div class="rating-breakdown" id="ratingBreakdown"></div>
+
+              <div class="review-list-wrap">
+                <div class="panel-title-row">
+                  <h4>Tenant reviews</h4>
+                  <button class="text-button" id="writeReviewInline">Write review</button>
+                </div>
+                <div id="reviewList" class="review-list"></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="how-section" id="howItWorks" aria-labelledby="how-title">
+        <div class="section-header">
+          <p class="eyebrow">How the MVP works</p>
+          <h2 id="how-title">Built for GitHub Pages, designed like a real app.</h2>
+        </div>
+        <div class="steps-grid">
+          <article>
+            <span>01</span>
+            <h3>Map selection</h3>
+            <p>Leaflet loads OpenStreetMap tiles. When you click, Overpass checks for a nearby building.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>Rent benchmark</h3>
+            <p>The selected location is matched to the nearest local rent benchmark entry in <code>data/rent-data.json</code>.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Flat review</h3>
+            <p>Users rate rent value, cleanliness, warmth, noise, safety, flatmate vibe, communication, pressure, and liveability.</p>
+          </article>
+          <article>
+            <span>04</span>
+            <h3>Safe prototype storage</h3>
+            <p>New reviews save in the browser using localStorage, so it works on static hosting with no backend.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="review-dialog" id="reviewDialog" aria-labelledby="reviewDialogTitle">
+    <form method="dialog" class="review-form" id="reviewForm">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">Flatwise review</p>
+          <h2 id="reviewDialogTitle">Review selected flat</h2>
+          <p id="reviewDialogSuburb">Select a location first.</p>
+        </div>
+        <button class="icon-button" value="cancel" aria-label="Close review form">×</button>
+      </div>
+
+      <div class="privacy-note">
+        Keep it useful: review the living conditions, not private people. Avoid exact unit details, personal attacks, or identifying information.
+      </div>
+
+      <div class="form-grid" id="ratingInputs"></div>
+
+      <label class="field-block" for="reviewNote">
+        Review note
+        <textarea id="reviewNote" rows="5" maxlength="420" placeholder="Example: Great location, but the room was damp in winter and the viewing felt rushed."></textarea>
+      </label>
+
+      <div class="dialog-actions">
+        <button class="secondary-button" value="cancel" type="button" id="cancelReview">Cancel</button>
+        <button class="primary-button" type="submit">Save review</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+[
+  {
+    "area": "Te Aro",
+    "lat": -41.29484,
+    "lng": 174.77885,
+    "dwellingType": "room / flatshare style",
+    "medianRent": 320,
+    "lowerQuartile": 275,
+    "upperQuartile": 390
+  },
+  {
+    "area": "Aro Valley",
+    "lat": -41.2938,
+    "lng": 174.7595,
+    "dwellingType": "room / flatshare style",
+    "medianRent": 300,
+    "lowerQuartile": 250,
+    "upperQuartile": 365
+  },
+  {
+    "area": "Kelburn",
+    "lat": -41.2889,
+    "lng": 174.768,
+    "dwellingType": "room / flatshare style",
+    "medianRent": 315,
+    "lowerQuartile": 260,
+    "upperQuartile": 380
+  },
+  {
+    "area": "Mount Cook",
+    "lat": -41.303,
+    "lng": 174.7725,
+    "dwellingType": "room / flatshare style",
+    "medianRent": 305,
+    "lowerQuartile": 255,
+    "upperQuartile": 370
+  },
+  {
+    "area": "Newtown",
+    "lat": -41.3134,
+    "lng": 174.7804,
+    "dwellingType": "room / flatshare style",
+    "medianRent": 285,
+    "lowerQuartile": 235,
+    "upperQuartile": 345
+  },
+  {
+    "area": "Mount Victoria",
+    "lat": -41.2968,
+    "lng": 174.7889,
+    "dwellingType": "room / flatshare style",
+    "medianRent": 330,
+    "lowerQuartile": 280,
+    "upperQuartile": 400
+  },
+  {
+    "area": "Thorndon",
+    "lat": -41.2768,
+    "lng": 174.7764,
+    "dwellingType": "room / flatshare style",
+    "medianRent": 310,
+    "lowerQuartile": 260,
+    "upperQuartile": 375
+  }
+]
