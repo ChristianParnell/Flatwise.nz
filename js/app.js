@@ -7,7 +7,9 @@ const state = {
   sampleReviews: [],
   rentData: [],
   demoMarkers: [],
-  localReviews: loadLocalReviews()
+  localReviews: loadLocalReviews(),
+  resizeTimer: null,
+  searchTimer: null
 };
 
 const ratingFields = [
@@ -34,7 +36,9 @@ async function init() {
   initMap();
   addDemoMarkers();
   bindUI();
+  attachMapStabiliser();
   renderSearchResults("");
+  invalidateMapSize("initial load");
 }
 
 function cacheElements() {
@@ -77,17 +81,69 @@ function initMap() {
 
   state.map = L.map("map", {
     zoomControl: false,
-    scrollWheelZoom: true
+    scrollWheelZoom: true,
+    preferCanvas: true,
+    zoomAnimation: true,
+    fadeAnimation: false,
+    markerZoomAnimation: true
   }).setView(center, zoom);
 
   L.control.zoom({ position: "bottomright" }).addTo(state.map);
 
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 20,
+    updateWhenIdle: true,
+    keepBuffer: 4,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(state.map);
 
   state.map.on("click", handleMapClick);
+}
+
+
+function attachMapStabiliser() {
+  if (!state.map || !els.map) return;
+
+  const schedule = () => invalidateMapSize("layout changed");
+
+  window.addEventListener("resize", schedule, { passive: true });
+  window.addEventListener("load", () => invalidateMapSize("window loaded"), { once: true });
+
+  if ("ResizeObserver" in window) {
+    const observer = new ResizeObserver(schedule);
+    observer.observe(els.map);
+    observer.observe(document.querySelector(".map-panel"));
+  }
+
+  if ("IntersectionObserver" in window) {
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) invalidateMapSize("map visible");
+    }, { threshold: 0.1 });
+    observer.observe(els.map);
+  }
+
+  [60, 180, 420, 900].forEach(delay => {
+    window.setTimeout(() => invalidateMapSize(`settle ${delay}`), delay);
+  });
+}
+
+function invalidateMapSize(reason = "") {
+  if (!state.map) return;
+  window.clearTimeout(state.resizeTimer);
+  state.resizeTimer = window.setTimeout(() => {
+    state.map.invalidateSize({ animate: false, pan: false });
+  }, 40);
+}
+
+function scrollToMap() {
+  document.getElementById("mapArea").scrollIntoView({ behavior: "smooth", block: "start" });
+  invalidateMapSize("scroll to map");
+  window.setTimeout(() => invalidateMapSize("after scroll"), 420);
+}
+
+function scrollToDetails() {
+  document.querySelector(".details-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  invalidateMapSize("scroll to details");
 }
 
 function addDemoMarkers() {
@@ -198,6 +254,8 @@ function selectFlat(flat) {
   renderDetails(flat);
   els.detailsEmpty.classList.add("hidden");
   els.detailsContent.classList.remove("hidden");
+  invalidateMapSize("selected flat");
+  window.setTimeout(scrollToDetails, 120);
 }
 
 function placeSelectedMarker(flat) {
@@ -205,7 +263,7 @@ function placeSelectedMarker(flat) {
   state.selectedMarker = L.marker([flat.lat, flat.lng], {
     icon: selectedMarkerIcon()
   }).addTo(state.map);
-  state.selectedMarker.bindPopup(`<strong>${escapeHtml(flat.name)}</strong><br><span class="popup-meta">Selected for review</span>`).openPopup();
+  state.selectedMarker.bindPopup(`<strong>${escapeHtml(flat.name)}</strong><br><span class="popup-meta">Selected for review</span>`, { autoPan: false }).openPopup();
 }
 
 function renderDetails(flat) {
@@ -339,7 +397,7 @@ function buildRatingInputs() {
 function openReviewDialog() {
   if (!state.selectedFlat) {
     setStatus("Select a flat or building first, then write a review.");
-    document.getElementById("mapArea").scrollIntoView({ behavior: "smooth" });
+    scrollToMap();
     return;
   }
 
@@ -388,24 +446,39 @@ function saveReview(event) {
 }
 
 function bindUI() {
-  document.getElementById("jumpToMap").addEventListener("click", () => document.getElementById("mapArea").scrollIntoView({ behavior: "smooth" }));
+  document.getElementById("jumpToMap").addEventListener("click", scrollToMap);
   document.getElementById("jumpToHow").addEventListener("click", () => document.getElementById("howItWorks").scrollIntoView({ behavior: "smooth" }));
-  document.getElementById("startReviewTop").addEventListener("click", () => document.getElementById("mapArea").scrollIntoView({ behavior: "smooth" }));
-  document.getElementById("startReviewHero").addEventListener("click", () => document.getElementById("mapArea").scrollIntoView({ behavior: "smooth" }));
+  document.getElementById("startReviewTop").addEventListener("click", scrollToMap);
+  document.getElementById("startReviewHero").addEventListener("click", scrollToMap);
   document.getElementById("openDemoFlat").addEventListener("click", () => {
     const demo = state.sampleReviews[0];
-    state.map.setView([demo.lat, demo.lng], 18);
+    state.map.setView([demo.lat, demo.lng], 18, { animate: false });
+    invalidateMapSize("open demo flat");
     selectFlat({ ...demo, source: "demo", osmKey: demo.osmKey || `demo/${demo.id}` });
-    document.getElementById("mapArea").scrollIntoView({ behavior: "smooth" });
+    scrollToMap();
   });
 
-  document.getElementById("locateWellington").addEventListener("click", () => state.map.setView(CONFIG.defaultMapCenter || [-41.29484, 174.77885], CONFIG.defaultZoom || 17));
+  document.getElementById("locateWellington").addEventListener("click", () => {
+    state.map.setView(CONFIG.defaultMapCenter || [-41.29484, 174.77885], CONFIG.defaultZoom || 17, { animate: false });
+    invalidateMapSize("locate Wellington");
+  });
   document.getElementById("reviewSelected").addEventListener("click", openReviewDialog);
   document.getElementById("writeReviewInline").addEventListener("click", openReviewDialog);
   document.getElementById("cancelReview").addEventListener("click", () => els.reviewDialog.close());
   els.reviewForm.addEventListener("submit", saveReview);
 
-  els.searchInput.addEventListener("input", event => renderSearchResults(event.target.value));
+  els.searchInput.addEventListener("input", event => {
+    window.clearTimeout(state.searchTimer);
+    const value = event.target.value;
+    state.searchTimer = window.setTimeout(() => renderSearchResults(value), 180);
+  });
+
+  els.searchInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      searchAddress(event.target.value);
+    }
+  });
   els.clearSearch.addEventListener("click", () => {
     els.searchInput.value = "";
     renderSearchResults("");
@@ -430,10 +503,50 @@ function renderSearchResults(query) {
 
   if (matches.length) {
     const group = L.featureGroup(matches.map(item => item.marker));
-    state.map.fitBounds(group.getBounds().pad(0.28));
+    state.map.fitBounds(group.getBounds().pad(0.28), { animate: false });
+    invalidateMapSize("search fit bounds");
     setStatus(`${matches.length} demo flat${matches.length === 1 ? "" : "s"} matched your search.`);
   } else {
-    setStatus("No demo flats matched. You can still click any map building to select it.");
+    setStatus("No demo flats matched. Press Enter to search OpenStreetMap for that address, or click any map building to select it.");
+  }
+}
+
+async function searchAddress(query) {
+  const q = query.trim();
+  if (q.length < 3) {
+    setStatus("Type a suburb, street, or address first.");
+    return;
+  }
+
+  setStatus("Searching OpenStreetMap for that address…");
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=nz&q=${encodeURIComponent(q)}`;
+    const response = await fetch(url, {
+      headers: {
+        "Accept": "application/json"
+      }
+    });
+    if (!response.ok) throw new Error(`Address search failed: ${response.status}`);
+    const results = await response.json();
+
+    if (!results.length) {
+      setStatus("No address result found. Try a simpler search like 'Jessie Street Wellington', then click the building.");
+      return;
+    }
+
+    const result = results[0];
+    const lat = Number(result.lat);
+    const lng = Number(result.lon);
+    state.map.setView([lat, lng], 18, { animate: false });
+    invalidateMapSize("address search");
+
+    const building = await findNearbyBuilding(lat, lng);
+    selectFlat(building || createManualSelection(lat, lng));
+    setStatus("Address found. Flatwise selected the closest building or map point for review.");
+  } catch (error) {
+    console.warn(error);
+    setStatus("Address search could not be reached. You can still pan the map and click the building manually.");
   }
 }
 

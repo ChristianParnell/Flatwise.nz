@@ -412,7 +412,7 @@ code {
 
 .map-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 430px;
+  grid-template-columns: 1fr;
   gap: 1rem;
   align-items: stretch;
 }
@@ -428,9 +428,16 @@ code {
 
 .map-panel,
 .details-panel {
-  min-height: 740px;
   border-radius: var(--radius);
   overflow: hidden;
+}
+
+.map-panel {
+  min-height: min(86vh, 940px);
+}
+
+.details-panel {
+  min-height: 0;
 }
 
 .map-panel {
@@ -490,13 +497,35 @@ code {
 
 #map {
   position: relative;
-  flex: 1;
-  min-height: 580px;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: clamp(620px, 76vh, 920px);
   background: #dfe3d6;
+  isolation: isolate;
 }
 
 .leaflet-container {
+  width: 100%;
+  height: 100%;
   font-family: inherit;
+  background: #dfe3d6;
+}
+
+/* Leaflet can look broken if global site styles resize map images or if the map is
+   initialised before the browser has finished laying out the page. These rules keep
+   the tile grid stable and stop the patchy/stuttered tile look. */
+.leaflet-tile,
+.leaflet-tile-container img {
+  max-width: none !important;
+  max-height: none !important;
+}
+
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
 }
 
 .flat-popup {
@@ -524,7 +553,26 @@ code {
 
 .details-panel {
   padding: 1rem;
-  overflow: auto;
+  overflow: visible;
+}
+
+.details-content {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.15fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.details-content .photo-frame {
+  grid-row: span 3;
+}
+
+.details-content .details-head,
+.details-content .info-strip,
+.details-content .rent-card,
+.details-content .rating-breakdown,
+.details-content .review-list-wrap {
+  min-width: 0;
 }
 
 .details-empty {
@@ -555,17 +603,18 @@ code {
 
 .photo-frame {
   width: 100%;
-  min-height: 230px;
+  min-height: 320px;
   overflow: hidden;
   border-radius: 24px;
   border: 1px solid var(--line);
   background: #d9dfd0;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
 }
 
 .photo-frame img {
   width: 100%;
-  height: 260px;
+  height: 100%;
+  min-height: 320px;
   object-fit: cover;
   display: block;
 }
@@ -573,7 +622,7 @@ code {
 .photo-placeholder {
   display: grid;
   place-items: center;
-  min-height: 260px;
+  min-height: 320px;
   padding: 1.4rem;
   text-align: center;
   background:
@@ -910,7 +959,6 @@ code {
 
 @media (max-width: 1120px) {
   .hero-section,
-  .map-layout,
   .section-header.compact {
     grid-template-columns: 1fr;
   }
@@ -921,6 +969,14 @@ code {
 
   .details-panel {
     min-height: auto;
+  }
+
+  .details-content {
+    grid-template-columns: 1fr;
+  }
+
+  .details-content .photo-frame {
+    grid-row: auto;
   }
 
   .steps-grid {
@@ -965,7 +1021,7 @@ code {
   }
 
   #map {
-    min-height: 500px;
+    min-height: 66vh;
   }
 
   .form-grid,
