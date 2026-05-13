@@ -11,7 +11,7 @@ window.FLATWISE_CONFIG = {
   // HUGE TILE MODE
   // 1024 + -2 makes each displayed Leaflet tile cover a much larger map area.
   // If it looks too blurry, change these to 512 and -1.
-  mapTileSize: 112,
+  mapTileSize: 512,
   mapTileZoomOffset: -1,
   mapMaxNativeZoom: 19,
   mapTileKeepBuffer: 6,
