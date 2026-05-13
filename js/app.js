@@ -96,7 +96,6 @@ function initMap() {
   const center = CONFIG.defaultMapCenter || [-41.29484, 174.77885];
   const zoom = CONFIG.defaultZoom || 17;
   const bounds = CONFIG.mapBounds || [[-47.8, 165.5], [-33.8, 179.5]];
-
   const canvasRenderer = L.canvas({ padding: 0.5 });
 
   state.map = L.map("map", {
@@ -126,15 +125,21 @@ function initMap() {
   L.tileLayer(CONFIG.osmTileUrl || "https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     minZoom: 5,
     maxZoom: CONFIG.maxBoundaryZoom || 19,
-    maxNativeZoom: 19,
-    tileSize: 256,
-    zoomOffset: 0,
+    maxNativeZoom: CONFIG.mapMaxNativeZoom || 19,
+
+    // HUGE TILE MODE:
+    // 1024 with zoomOffset -2 makes every rendered tile cover a much larger map area.
+    // For sharper but less extreme loading, use 512 with zoomOffset -1 in config.js.
+    tileSize: CONFIG.mapTileSize || 1024,
+    zoomOffset: Number.isFinite(CONFIG.mapTileZoomOffset) ? CONFIG.mapTileZoomOffset : -2,
+
     noWrap: true,
     detectRetina: false,
-    updateWhenZooming: true,
-    updateWhenIdle: false,
-    keepBuffer: 4,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    updateWhenZooming: CONFIG.mapUpdateWhenZooming ?? false,
+    updateWhenIdle: CONFIG.mapUpdateWhenIdle ?? true,
+    updateInterval: CONFIG.mapUpdateInterval || 300,
+    keepBuffer: CONFIG.mapTileKeepBuffer ?? 6,
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(state.map);
 
   state.map.createPane("propertyPane");
@@ -150,6 +155,7 @@ function initMap() {
 
   state.map.on("moveend zoomend", scheduleBoundaryLoad);
   state.map.on("click", handleBackgroundClick);
+
   state.map.whenReady(() => {
     stableInvalidate();
     setTimeout(stableInvalidate, 120);
@@ -184,7 +190,11 @@ function addDemoMarkers() {
     `);
 
     marker.on("click", () => {
-      selectFlat({ ...flat, source: "demo", osmKey: flat.osmKey || `demo/${flat.id}` }, null, { focus: true });
+      selectFlat({
+        ...flat,
+        source: "demo",
+        osmKey: flat.osmKey || `demo/${flat.id}`
+      }, null, { focus: true });
     });
 
     state.demoMarkers.push({ marker, flat });
@@ -231,8 +241,12 @@ async function searchLocation(query) {
   url.searchParams.set("q", query);
 
   try {
-    const response = await fetch(url.toString(), { headers: { "Accept": "application/json" } });
+    const response = await fetch(url.toString(), {
+      headers: { "Accept": "application/json" }
+    });
+
     if (!response.ok) throw new Error(`Nominatim failed: ${response.status}`);
+
     const results = await response.json();
     if (!results.length) {
       setStatus("No address found. Try a street, suburb, or a more complete address.");
@@ -243,6 +257,7 @@ async function searchLocation(query) {
     const lat = Number(result.lat);
     const lng = Number(result.lon);
     const zoom = Math.max(CONFIG.minBoundaryZoom || 16, 18);
+
     state.map.setView([lat, lng], zoom, { animate: true });
     setStatus(`Moved to ${result.display_name}. Zoom/hover to select the exact parcel.`);
     setTimeout(scheduleBoundaryLoad, 650);
@@ -255,7 +270,7 @@ async function searchLocation(query) {
 function scheduleBoundaryLoad() {
   if (!state.map) return;
   clearTimeout(state.loadTimer);
-  state.loadTimer = setTimeout(loadBoundariesForView, 420);
+  state.loadTimer = setTimeout(loadBoundariesForView, CONFIG.boundaryLoadDelay || 420);
 }
 
 async function loadBoundariesForView() {
@@ -273,20 +288,34 @@ async function loadBoundariesForView() {
     return;
   }
 
-  const bounds = state.map.getBounds().pad(0.08);
+  // Load a much larger area than the exact visible viewport.
+  // This stops the boundary layer from feeling like it is only appearing in tiny patches.
+  const bounds = state.map.getBounds().pad(CONFIG.boundaryLoadPadding ?? 0.65);
   const loadKey = buildBoundsKey(bounds, zoom);
+
   if (loadKey === state.lastLoadKey) return;
   state.lastLoadKey = loadKey;
 
   if (state.dataController) state.dataController.abort();
   state.dataController = new AbortController();
   state.isLoadingBoundaries = true;
+
   setStatus("Loading official LINZ property parcels and building outlines…");
 
   try {
     const [parcels, buildings] = await Promise.all([
-      queryArcGis(CONFIG.linzParcelsEndpoint, bounds, 1600, state.dataController.signal),
-      queryArcGis(CONFIG.linzBuildingsEndpoint, bounds, 1200, state.dataController.signal)
+      queryArcGis(
+        CONFIG.linzParcelsEndpoint,
+        bounds,
+        CONFIG.parcelRecordCount || 2000,
+        state.dataController.signal
+      ),
+      queryArcGis(
+        CONFIG.linzBuildingsEndpoint,
+        bounds,
+        CONFIG.buildingRecordCount || 2000,
+        state.dataController.signal
+      )
     ]);
 
     renderBuildingOutlines(buildings);
@@ -308,6 +337,7 @@ async function loadBoundariesForView() {
 
 function buildBoundsKey(bounds, zoom) {
   const precision = zoom >= 18 ? 5 : 4;
+
   return [
     Math.round(zoom),
     bounds.getSouth().toFixed(precision),
@@ -334,8 +364,10 @@ async function queryArcGis(endpoint, bounds, recordCount, signal) {
 
   const response = await fetch(`${endpoint}?${params.toString()}`, { signal });
   if (!response.ok) throw new Error(`LINZ ArcGIS request failed: ${response.status}`);
+
   const data = await response.json();
   if (data.error) throw new Error(data.error.message || "LINZ ArcGIS error");
+
   return Array.isArray(data.features) ? data.features : [];
 }
 
@@ -351,6 +383,7 @@ function renderBuildingOutlines(features) {
       interactive: false,
       ...buildingStyle()
     });
+
     layer.addTo(state.buildingLayer);
   });
 }
@@ -402,7 +435,10 @@ function esriRingsToLatLngs(geometry) {
 
   const rings = geometry.rings
     .filter(ring => Array.isArray(ring) && ring.length >= 3)
-    .map(ring => ring.map(point => [Number(point[1]), Number(point[0])]).filter(pair => Number.isFinite(pair[0]) && Number.isFinite(pair[1])));
+    .map(ring => ring
+      .map(point => [Number(point[1]), Number(point[0])])
+      .filter(pair => Number.isFinite(pair[0]) && Number.isFinite(pair[1]))
+    );
 
   return rings.length ? rings : null;
 }
@@ -411,7 +447,7 @@ function normaliseParcelFeature(feature, layer) {
   const attributes = feature.attributes || {};
   const id = getFirst(attributes, ["OBJECTID", "objectid", "id", "parcel_id", "PARCEL_ID"]) || cryptoSafeId();
   const center = layer.getBounds().getCenter();
-  const appellation = getFirst(attributes, ["appellation", "APPellation", "APPellation", "APP_DESCRIPTION", "parcel_intent", "purpose", "PURPOSE"]);
+  const appellation = getFirst(attributes, ["appellation", "APPellation", "APP_DESCRIPTION", "parcel_intent", "purpose", "PURPOSE"]);
   const locality = getFirst(attributes, ["suburb_locality", "SUBURB_LOCALITY", "locality", "LOCALITY"]);
   const parcelArea = getFirst(attributes, ["shape_area", "Shape__Area", "area", "AREA"]);
   const inferredRent = inferRentArea(center.lat, center.lng, locality);
@@ -426,7 +462,9 @@ function normaliseParcelFeature(feature, layer) {
     lat: center.lat,
     lng: center.lng,
     boundarySource: "LINZ NZ Primary Parcels",
-    boundaryDescription: parcelArea ? `Official primary parcel polygon. Approx. area attribute: ${formatArea(parcelArea)}.` : "Official primary parcel polygon from LINZ.",
+    boundaryDescription: parcelArea
+      ? `Official primary parcel polygon. Approx. area attribute: ${formatArea(parcelArea)}.`
+      : "Official primary parcel polygon from LINZ.",
     ratings: {},
     note: "No Flatwise review exists for this selected property yet.",
     attributes
@@ -435,14 +473,18 @@ function normaliseParcelFeature(feature, layer) {
 
 function handleParcelHover(layer) {
   els.map.classList.add("is-hovering-property");
+
   if (state.hoveredLayer && state.hoveredLayer !== state.selectedLayer) {
     state.hoveredLayer.setStyle(parcelStyle("idle"));
   }
+
   state.hoveredLayer = layer;
+
   if (layer !== state.selectedLayer) {
     layer.setStyle(parcelStyle("hover"));
     layer.bringToFront();
   }
+
   setStatus("Property boundary highlighted. Click it to select and focus on this parcel.");
 }
 
@@ -463,7 +505,9 @@ function selectFlat(flat, layer = null, options = {}) {
 
   state.selectedFlat = flat;
   state.selectedLayer = layer || null;
-  state.selectedBounds = layer ? layer.getBounds() : L.latLngBounds([flat.lat, flat.lng], [flat.lat, flat.lng]);
+  state.selectedBounds = layer
+    ? layer.getBounds()
+    : L.latLngBounds([flat.lat, flat.lng], [flat.lat, flat.lng]);
 
   if (layer) {
     layer.setStyle(parcelStyle("selected"));
@@ -505,6 +549,7 @@ function focusSelected(options = {}) {
 
 function placeSelectedMarker(flat) {
   if (state.selectedMarker) state.selectedMarker.remove();
+
   state.selectedMarker = L.marker([flat.lat, flat.lng], {
     icon: selectedMarkerIcon(),
     keyboard: false,
@@ -521,7 +566,9 @@ function placeSelectedMarker(flat) {
 
 function renderDetails(flat) {
   const reviews = getReviewsForFlat(flat);
-  const combinedRatings = reviews.length ? averageRatings(reviews.map(review => review.ratings)) : flat.ratings || {};
+  const combinedRatings = reviews.length
+    ? averageRatings(reviews.map(review => review.ratings))
+    : flat.ratings || {};
   const averageScore = Object.keys(combinedRatings).length ? calculateAverage(combinedRatings) : null;
   const rent = inferRentArea(flat.lat, flat.lng, flat.suburb);
 
@@ -549,7 +596,7 @@ function labelForSource(source) {
 function renderPhoto(flat) {
   if (CONFIG.enableGoogleStreetView && CONFIG.googleStreetViewApiKey) {
     const url = `https://maps.googleapis.com/maps/api/streetview?size=900x520&location=${flat.lat},${flat.lng}&fov=80&pitch=0&key=${encodeURIComponent(CONFIG.googleStreetViewApiKey)}`;
-    els.photoFrame.innerHTML = `<img src="${url}" alt="Street view image near ${escapeAttribute(flat.name)}" loading="lazy">`;
+    els.photoFrame.innerHTML = `<img src="${escapeAttribute(url)}" alt="Street view preview for selected property">`;
     return;
   }
 
@@ -573,8 +620,7 @@ function renderRent(rent) {
 
   els.rentBenchmark.textContent = `$${rent.medianRent}/week`;
   els.rentDescription.innerHTML = `
-    <strong>${escapeHtml(rent.area)}</strong> ${escapeHtml(rent.dwellingType)}:
-    lower quartile $${rent.lowerQuartile}, median $${rent.medianRent}, upper quartile $${rent.upperQuartile} per week.
+    <strong>${escapeHtml(rent.area)}</strong> ${escapeHtml(rent.dwellingType)}: lower quartile $${rent.lowerQuartile}, median $${rent.medianRent}, upper quartile $${rent.upperQuartile} per week.
     ${escapeHtml(rent.note || "")}
   `;
 }
@@ -588,10 +634,14 @@ function renderBreakdown(ratings) {
   els.ratingBreakdown.innerHTML = ratingFields.map(field => {
     const value = Number(ratings[field.key] || 0);
     const width = Math.max(0, Math.min(100, (value / 5) * 100));
+
     return `
       <div class="breakdown-row">
-        <div class="breakdown-label"><span>${escapeHtml(field.label)}</span><span>${value.toFixed(1)}/5</span></div>
-        <div class="meter" aria-hidden="true"><span style="--width:${width}%"></span></div>
+        <div class="breakdown-label">
+          <span>${escapeHtml(field.label)}</span>
+          <strong>${value.toFixed(1)}/5</strong>
+        </div>
+        <div class="meter"><span style="--width: ${width}%"></span></div>
       </div>
     `;
   }).join("");
@@ -599,8 +649,9 @@ function renderBreakdown(ratings) {
 
 function renderEmptyBreakdown() {
   if (!els.ratingBreakdown) return;
+
   els.ratingBreakdown.innerHTML = `
-    <div class="review-card">
+    <div class="info-card">
       <strong>No rating breakdown yet.</strong>
       <p>Once someone reviews this property, the category scores will appear here.</p>
     </div>
@@ -610,10 +661,13 @@ function renderEmptyBreakdown() {
 function renderReviews(reviews, flat) {
   if (!reviews.length) {
     els.reviewList.innerHTML = `
-      <div class="review-card">
-        <header><strong>Be the first reviewer</strong><span>—</span></header>
+      <article class="review-card">
+        <header>
+          <strong>Be the first reviewer—</strong>
+          <span>0 reviews</span>
+        </header>
         <p>${escapeHtml(flat.note || "No tenant reviews have been added for this property yet.")}</p>
-      </div>
+      </article>
     `;
     return;
   }
@@ -621,11 +675,12 @@ function renderReviews(reviews, flat) {
   els.reviewList.innerHTML = reviews.map(review => {
     const avg = calculateAverage(review.ratings);
     const date = review.createdAt ? new Date(review.createdAt) : new Date();
+
     return `
       <article class="review-card">
         <header>
           <strong>${avg.toFixed(1)} / 5 tenant score</strong>
-          <time datetime="${date.toISOString()}">${date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</time>
+          <span>${date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span>
         </header>
         <p>${escapeHtml(review.note || "No written note provided.")}</p>
       </article>
@@ -635,30 +690,41 @@ function renderReviews(reviews, flat) {
 
 function getReviewsForFlat(flat) {
   const key = flat.osmKey || flat.id;
+
   const demoMatches = state.sampleReviews
     .filter(item => (item.osmKey || `demo/${item.id}`) === key || item.id === flat.id)
-    .map(item => ({ ratings: item.ratings, note: item.note, createdAt: item.createdAt, source: "demo" }));
+    .map(item => ({
+      ratings: item.ratings,
+      note: item.note,
+      createdAt: item.createdAt,
+      source: "demo"
+    }));
 
   const localMatches = state.localReviews.filter(item => item.osmKey === key);
+
   return [...demoMatches, ...localMatches];
 }
 
 function buildRatingInputs() {
   els.ratingInputs.innerHTML = ratingFields.map(field => `
     <div class="rating-field">
-      <label for="${field.key}">
-        <span>${field.label}</span>
-        <output id="${field.key}Value">3</output>
+      <label for="${escapeAttribute(field.key)}">
+        <span>${escapeHtml(field.label)}</span>
+        <output id="${escapeAttribute(field.key)}Value">3</output>
       </label>
-      <input type="range" id="${field.key}" name="${field.key}" min="1" max="5" step="1" value="3" aria-describedby="${field.key}Hint" />
-      <small id="${field.key}Hint">${field.hint}</small>
+      <input id="${escapeAttribute(field.key)}" type="range" min="1" max="5" value="3" step="1">
+      <small>${escapeHtml(field.hint)}</small>
     </div>
   `).join("");
 
   ratingFields.forEach(field => {
     const input = document.getElementById(field.key);
     const output = document.getElementById(`${field.key}Value`);
-    input.addEventListener("input", () => { output.value = input.value; output.textContent = input.value; });
+
+    input.addEventListener("input", () => {
+      output.value = input.value;
+      output.textContent = input.value;
+    });
   });
 }
 
@@ -671,6 +737,7 @@ function openReviewDialog() {
 
   els.reviewDialogSuburb.textContent = `${state.selectedFlat.name} · ${state.selectedFlat.suburb || "Wellington"}`;
   els.reviewNote.value = "";
+
   ratingFields.forEach(field => {
     const input = document.getElementById(field.key);
     const output = document.getElementById(`${field.key}Value`);
@@ -715,8 +782,8 @@ function saveReview(event) {
 
 function inferRentArea(lat, lng, possibleName = "") {
   if (!state.rentData.length) return null;
-  const normalisedName = String(possibleName || "").trim().toLowerCase();
 
+  const normalisedName = String(possibleName || "").trim().toLowerCase();
   const directMatch = state.rentData.find(item => {
     const aliases = [item.area, ...(item.aliases || [])].map(value => String(value).toLowerCase());
     return aliases.some(alias => alias && normalisedName.includes(alias));
@@ -776,7 +843,11 @@ function buildingStyle() {
 function markerIcon(className, label) {
   return L.divIcon({
     className: "",
-    html: `<div class="demo-marker ${className}"><span>${escapeHtml(label)}</span></div>`,
+    html: `
+      <div class="demo-marker ${escapeAttribute(className)}">
+        <span>${escapeHtml(label)}</span>
+      </div>
+    `,
     iconSize: [44, 44],
     iconAnchor: [22, 38],
     popupAnchor: [0, -34]
@@ -809,6 +880,7 @@ function averageRatings(ratingObjects) {
     ratingFields.forEach(field => {
       const value = Number(ratings?.[field.key]);
       if (!Number.isFinite(value) || value <= 0) return;
+
       totals[field.key] = (totals[field.key] || 0) + value;
       counts[field.key] = (counts[field.key] || 0) + 1;
     });
@@ -821,7 +893,9 @@ function calculateAverage(ratings) {
   const values = ratingFields
     .map(field => Number(ratings?.[field.key]))
     .filter(value => Number.isFinite(value) && value > 0);
+
   if (!values.length) return 0;
+
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
@@ -836,14 +910,22 @@ function distanceMeters(lat1, lng1, lat2, lng2) {
   const toRad = value => Number(value) * Math.PI / 180;
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1))
+    * Math.cos(toRad(lat2))
+    * Math.sin(dLng / 2) ** 2;
+
   return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function getFirst(object, keys) {
   for (const key of keys) {
-    if (object && object[key] !== undefined && object[key] !== null && String(object[key]).trim() !== "") return object[key];
+    if (object && object[key] !== undefined && object[key] !== null && String(object[key]).trim() !== "") {
+      return object[key];
+    }
   }
+
   return null;
 }
 
@@ -872,6 +954,7 @@ function escapeAttribute(value) {
 
 function debounce(callback, wait) {
   let timeout;
+
   return (...args) => {
     clearTimeout(timeout);
     timeout = setTimeout(() => callback(...args), wait);
