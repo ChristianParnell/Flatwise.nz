@@ -1,47 +1,47 @@
 [
   {
     "area": "Te Aro",
-    "aliases": ["Te Aro", "Wellington Central"],
+    "aliases": ["Te Aro", "Wellington Central", "Cuba Street", "Courtenay Place"],
     "lat": -41.2933,
     "lng": 174.7775,
     "dwellingType": "room / flat-share guide",
     "medianRent": 330,
     "lowerQuartile": 280,
     "upperQuartile": 390,
-    "note": "Demo benchmark. Replace with official MBIE/Tenancy Services market-rent export or API data."
+    "note": "Demo benchmark. Replace with official MBIE / Tenancy Services market-rent data for a real launch."
   },
   {
     "area": "Kelburn",
-    "aliases": ["Kelburn", "North Kelburn"],
+    "aliases": ["Kelburn", "North Kelburn", "Victoria University"],
     "lat": -41.2889,
     "lng": 174.768,
     "dwellingType": "room / flat-share guide",
     "medianRent": 315,
     "lowerQuartile": 260,
     "upperQuartile": 370,
-    "note": "Demo benchmark. Replace with official MBIE/Tenancy Services market-rent export or API data."
+    "note": "Demo benchmark. Replace with official MBIE / Tenancy Services market-rent data for a real launch."
   },
   {
     "area": "Aro Valley",
-    "aliases": ["Aro Valley"],
+    "aliases": ["Aro Valley", "Aro"],
     "lat": -41.2938,
     "lng": 174.7595,
     "dwellingType": "room / flat-share guide",
     "medianRent": 300,
     "lowerQuartile": 250,
     "upperQuartile": 360,
-    "note": "Demo benchmark. Replace with official MBIE/Tenancy Services market-rent export or API data."
+    "note": "Demo benchmark. Replace with official MBIE / Tenancy Services market-rent data for a real launch."
   },
   {
     "area": "Mount Cook",
-    "aliases": ["Mount Cook"],
+    "aliases": ["Mount Cook", "Mt Cook"],
     "lat": -41.3016,
     "lng": 174.773,
     "dwellingType": "room / flat-share guide",
     "medianRent": 310,
     "lowerQuartile": 255,
     "upperQuartile": 365,
-    "note": "Demo benchmark. Replace with official MBIE/Tenancy Services market-rent export or API data."
+    "note": "Demo benchmark. Replace with official MBIE / Tenancy Services market-rent data for a real launch."
   },
   {
     "area": "Newtown",
@@ -52,7 +52,7 @@
     "medianRent": 295,
     "lowerQuartile": 245,
     "upperQuartile": 350,
-    "note": "Demo benchmark. Replace with official MBIE/Tenancy Services market-rent export or API data."
+    "note": "Demo benchmark. Replace with official MBIE / Tenancy Services market-rent data for a real launch."
   },
   {
     "area": "Brooklyn",
@@ -63,6 +63,6 @@
     "medianRent": 290,
     "lowerQuartile": 240,
     "upperQuartile": 345,
-    "note": "Demo benchmark. Replace with official MBIE/Tenancy Services market-rent export or API data."
+    "note": "Demo benchmark. Replace with official MBIE / Tenancy Services market-rent data for a real launch."
   }
 ]
