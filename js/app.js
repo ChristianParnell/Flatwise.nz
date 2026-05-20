@@ -2,15 +2,60 @@
   "use strict";
 
   const config = window.FLATWISE_CONFIG || {};
+  const ratingScale = config.reviews?.ratingScale || 10;
+  const defaultRating = Math.ceil(ratingScale / 2);
 
   const reviewFields = [
-    { key: "rentValue", label: "Rent value", hint: "Did the price feel fair for the condition of the flat?" },
-    { key: "warmth", label: "Warmth", hint: "Did it stay warm and dry through winter?" },
-    { key: "noise", label: "Noise", hint: "How liveable was the sound level day to day?" },
-    { key: "safety", label: "Safety", hint: "Did the flat and surrounding area feel safe?" },
-    { key: "communication", label: "Communication", hint: "Was the landlord or property manager clear and respectful?" },
-    { key: "pressure", label: "Pressure", hint: "Were tenants pressured around inspections, rent, or repairs?" },
-    { key: "liveability", label: "Liveability", hint: "Overall, would you recommend living here?" }
+    {
+      key: "rentValue",
+      label: "Rent value",
+      hint: "Does the rent feel fair for the space, condition, and location?"
+    },
+    {
+      key: "warmthInsulation",
+      label: "Warmth & insulation",
+      hint: "Does the flat hold heat without needing constant power use?"
+    },
+    {
+      key: "drynessMould",
+      label: "Dryness & mould control",
+      hint: "Are dampness, condensation, and mould properly under control?"
+    },
+    {
+      key: "repairsResponse",
+      label: "Repairs response",
+      hint: "Are maintenance issues handled quickly and properly?"
+    },
+    {
+      key: "noisePrivacy",
+      label: "Noise & privacy",
+      hint: "Can tenants sleep, study, and live without constant disturbance?"
+    },
+    {
+      key: "safetySecurity",
+      label: "Safety & security",
+      hint: "Do locks, lighting, access, and the surrounding area feel safe?"
+    },
+    {
+      key: "sunlightVentilation",
+      label: "Sunlight & ventilation",
+      hint: "Does the flat get useful natural light and fresh airflow?"
+    },
+    {
+      key: "waterPowerReliability",
+      label: "Water & power reliability",
+      hint: "Are hot water, pressure, heating, sockets, and utilities dependable?"
+    },
+    {
+      key: "landlordCommunication",
+      label: "Landlord communication",
+      hint: "Is communication clear, respectful, and not unnecessarily stressful?"
+    },
+    {
+      key: "overallLiveability",
+      label: "Overall liveability",
+      hint: "Would you recommend this flat to someone you care about?"
+    }
   ];
 
   const state = {
@@ -21,20 +66,28 @@
     selectedBoundaryLayer: null,
     selectedMarker: null,
     activeParcelLayer: null,
-    selectedFeature: null,
+    selected: null,
     rentData: null,
+    demoMarkers: new Map(),
     parcelCache: new Map(),
     buildingCache: new Map(),
     pendingBoundaryTimer: 0,
     parcelAbortController: null,
     buildingAbortController: null,
     tileLoadingCount: 0,
+    showPropertyLines: true,
+    highlightSelectedBoundary: true,
     elements: {}
   };
 
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", () => {
+    init().catch((error) => {
+      console.error("Flatwise failed to initialise:", error);
+      setStatus("Flatwise could not finish loading. Check the browser console for the exact error.");
+    });
+  });
 
-  function init() {
+  async function init() {
     bindElements();
     createRatingInputs();
 
@@ -43,7 +96,7 @@
       return;
     }
 
-    loadRentData();
+    await loadRentData();
     createMap();
     bindUIEvents();
     renderEmptyDetails();
@@ -53,15 +106,28 @@
     const ids = [
       "map", "mapStatus", "searchForm", "searchInput", "clearSearch", "wellingtonButton",
       "heroWellingtonButton", "focusButton", "reviewButton", "topReviewButton", "inlineReviewButton",
-      "detailsEmpty", "detailsContent", "photoFrame", "selectedType", "selectedTitle", "selectedSuburb",
-      "selectedScore", "rentBenchmark", "rentDescription", "boundarySource", "boundaryDescription",
-      "reviewCount", "ratingBreakdown", "reviewList", "reviewDialog", "reviewForm", "reviewDialogSuburb",
-      "ratingInputs", "reviewNote", "cancelReview", "closeDialog"
+      "propertyLinesToggle", "selectedBoundaryToggle", "detailsEmpty", "detailsContent", "photoFrame",
+      "selectedType", "selectedTitle", "selectedSuburb", "selectedScore", "rentBenchmark", "rentDescription",
+      "boundarySource", "boundaryDescription", "reviewCount", "ratingBreakdown", "reviewList", "reviewDialog",
+      "reviewForm", "reviewDialogSuburb", "ratingInputs", "reviewNote", "reviewNickname", "reviewTenancyPeriod",
+      "reviewWeeklyRent", "reviewRecommend", "cancelReview", "closeDialog"
     ];
 
     ids.forEach((id) => {
       state.elements[id] = document.getElementById(id);
     });
+
+    state.showPropertyLines = state.elements.propertyLinesToggle ? state.elements.propertyLinesToggle.checked : true;
+    state.highlightSelectedBoundary = state.elements.selectedBoundaryToggle ? state.elements.selectedBoundaryToggle.checked : true;
+  }
+
+  async function loadRentData() {
+    try {
+      state.rentData = await fetchJson(config.urls.rentData || "data/rent-data.json", 6000);
+    } catch (error) {
+      console.warn("Rent and demo-flat data could not be loaded:", error);
+      state.rentData = { areas: [], demoFlats: [] };
+    }
   }
 
   function createMap() {
@@ -90,9 +156,10 @@
     state.map.createPane("selectedPane");
     state.map.getPane("buildingPane").classList.add("leaflet-building-pane");
     state.map.getPane("propertyPane").classList.add("leaflet-property-pane");
+    state.map.getPane("selectedPane").classList.add("leaflet-selected-pane");
     state.map.getPane("buildingPane").style.zIndex = 390;
     state.map.getPane("propertyPane").style.zIndex = 430;
-    state.map.getPane("selectedPane").style.zIndex = 460;
+    state.map.getPane("selectedPane").style.zIndex = 470;
 
     state.tileLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors",
@@ -134,7 +201,7 @@
       stableInvalidate();
       setTimeout(stableInvalidate, 120);
       setTimeout(scheduleBoundaryLoad, 260);
-      setStatus("Map ready. Zoom closer to load LINZ property boundaries.");
+      setStatus("Map ready. Click a demo flat marker, or zoom closer and click a parcel boundary.");
     });
 
     state.map.on("movestart zoomstart", () => setTileLoading(true));
@@ -213,6 +280,26 @@
     state.elements.closeDialog?.addEventListener("click", closeReviewDialog);
     state.elements.clearSearch?.addEventListener("click", clearSearch);
 
+    state.elements.propertyLinesToggle?.addEventListener("change", () => {
+      state.showPropertyLines = state.elements.propertyLinesToggle.checked;
+      if (!state.showPropertyLines) {
+        state.parcelLayer?.clearLayers();
+        state.buildingLayer?.clearLayers();
+        state.selectedBoundaryLayer?.clearLayers();
+        setStatus("Property-line overlay turned off. Demo flat reviews still work normally.");
+        return;
+      }
+      setStatus("Property-line overlay turned on. Zoom closer if boundaries do not appear yet.");
+      scheduleBoundaryLoad();
+      refreshSelectedBoundary();
+    });
+
+    state.elements.selectedBoundaryToggle?.addEventListener("change", () => {
+      state.highlightSelectedBoundary = state.elements.selectedBoundaryToggle.checked;
+      refreshSelectedBoundary();
+      setStatus(state.highlightSelectedBoundary ? "Selected-property outline enabled." : "Selected-property outline hidden.");
+    });
+
     state.elements.searchForm?.addEventListener("submit", (event) => {
       event.preventDefault();
       runSearch();
@@ -235,14 +322,22 @@
   }
 
   function focusSelected() {
-    if (!state.selectedFeature) {
-      setStatus("Select a property boundary first, then the focus button will centre it.");
+    if (!state.selected) {
+      setStatus("Select a demo flat marker or property boundary first, then the focus button will centre it.");
       return;
     }
 
-    const bounds = getFeatureBounds(state.selectedFeature);
-    if (bounds?.isValid()) {
-      state.map.fitBounds(bounds.pad(0.28), { maxZoom: 19, animate: true, duration: 0.7 });
+    const feature = state.selected.feature || state.selected.boundaryFeature;
+    if (feature) {
+      const bounds = getFeatureBounds(feature);
+      if (bounds?.isValid()) {
+        state.map.fitBounds(bounds.pad(0.28), { maxZoom: 19, animate: true, duration: 0.7 });
+        return;
+      }
+    }
+
+    if (state.selected.centre) {
+      state.map.flyTo(state.selected.centre, Math.max(state.map.getZoom(), 18), { duration: 0.7 });
     }
   }
 
@@ -293,46 +388,77 @@
     }
   }
 
-  async function loadRentData() {
-    try {
-      state.rentData = await fetchJson(config.urls.rentData || "data/rent-data.json", 6000);
-    } catch (error) {
-      console.warn("Rent data could not be loaded:", error);
-      state.rentData = { areas: [], demoFlats: [] };
-    }
-  }
-
   function addDemoMarkers() {
-    fetchJson(config.urls.rentData || "data/rent-data.json", 6000)
-      .then((data) => {
-        const flats = Array.isArray(data.demoFlats) ? data.demoFlats : [];
-        flats.forEach(addDemoMarker);
-      })
-      .catch(() => {
-        const fallback = [
-          { title: "Te Aro demo flat", lat: -41.2944, lng: 174.7769, score: 3.1, note: "Demo review marker only." },
-          { title: "Kelburn demo flat", lat: -41.2891, lng: 174.7667, score: 4.0, note: "Demo review marker only." }
-        ];
-        fallback.forEach(addDemoMarker);
-      });
+    const flats = Array.isArray(state.rentData?.demoFlats) ? state.rentData.demoFlats : [];
+    const fallback = [
+      { id: "te-aro-demo", title: "Te Aro demo flat", lat: -41.2944, lng: 174.7769, score: 6.3, note: "Demo review marker only." },
+      { id: "kelburn-demo", title: "Kelburn demo flat", lat: -41.2891, lng: 174.7667, score: 8.0, note: "Demo review marker only." }
+    ];
+
+    (flats.length ? flats : fallback).forEach(addDemoMarker);
   }
 
   function addDemoMarker(flat) {
     if (!state.map || !Number.isFinite(flat.lat) || !Number.isFinite(flat.lng)) return;
-
-    const scoreClass = ratingClass(flat.score);
-    const marker = L.marker([flat.lat, flat.lng], {
-      title: flat.title || "Flatwise demo review",
-      icon: L.divIcon({
-        className: `demo-marker ${scoreClass}`,
-        html: `<span>${escapeHtml(String(Math.round((flat.score || 0) * 10) / 10))}</span>`,
-        iconSize: [44, 44],
-        iconAnchor: [22, 42],
-        popupAnchor: [0, -38]
-      })
+    const safeFlat = normaliseDemoFlat(flat);
+    const marker = L.marker([safeFlat.lat, safeFlat.lng], {
+      title: safeFlat.title,
+      icon: demoMarkerIcon(safeFlat)
     }).addTo(state.map);
 
-    marker.bindPopup(`<div class="flat-popup"><strong>${escapeHtml(flat.title || "Flatwise demo review")}</strong><div class="popup-meta">${escapeHtml(flat.note || "Local demo marker.")}</div></div>`);
+    marker.bindPopup(demoPopupHtml(safeFlat));
+    marker.on("click", () => selectDemoFlat(safeFlat, marker));
+    state.demoMarkers.set(safeFlat.id, marker);
+  }
+
+  function normaliseDemoFlat(flat) {
+    const title = flat.title || "Flatwise demo flat";
+    return {
+      ...flat,
+      id: flat.id || slugify(title),
+      title,
+      lat: Number(flat.lat),
+      lng: Number(flat.lng),
+      note: flat.note || "Demo marker showing where tenant reviews could appear.",
+      seedReviews: Array.isArray(flat.seedReviews) ? flat.seedReviews : []
+    };
+  }
+
+  function demoMarkerIcon(flat) {
+    const reviews = getReviewsForTarget({ type: "demo", id: `demo:${flat.id}`, demoFlat: flat });
+    const average = calculateOverall(reviews);
+    const value = Number.isFinite(average) ? average : Number(flat.score || defaultRating);
+    const display = Number.isFinite(value) ? value.toFixed(1) : "—";
+
+    return L.divIcon({
+      className: `demo-marker ${ratingClass(value)}`,
+      html: `<span>${escapeHtml(display)}</span>`,
+      iconSize: [48, 48],
+      iconAnchor: [24, 44],
+      popupAnchor: [0, -38]
+    });
+  }
+
+  function demoPopupHtml(flat) {
+    const target = { type: "demo", id: `demo:${flat.id}`, demoFlat: flat };
+    const reviews = getReviewsForTarget(target);
+    const average = calculateOverall(reviews);
+    const score = Number.isFinite(average) ? average.toFixed(1) : Number(flat.score || 0).toFixed(1);
+
+    return `
+      <div class="flat-popup">
+        <strong>${escapeHtml(flat.title)}</strong>
+        <div class="popup-meta">${escapeHtml(flat.note)}</div>
+        <div class="popup-score">${escapeHtml(score)} / ${ratingScale}</div>
+      </div>
+    `;
+  }
+
+  function updateDemoMarker(flat) {
+    const marker = state.demoMarkers.get(flat.id);
+    if (!marker) return;
+    marker.setIcon(demoMarkerIcon(flat));
+    marker.setPopupContent(demoPopupHtml(flat));
   }
 
   function scheduleBoundaryLoad() {
@@ -342,6 +468,12 @@
 
   async function loadBoundariesForView() {
     if (!state.map) return;
+
+    if (!state.showPropertyLines) {
+      state.parcelLayer.clearLayers();
+      state.buildingLayer.clearLayers();
+      return;
+    }
 
     const zoom = state.map.getZoom();
     const parcelZoom = config.map?.parcelLoadZoom || 16;
@@ -385,17 +517,26 @@
     } else {
       state.buildingLayer.clearLayers();
     }
+
+    if (state.selected?.type === "demo" && state.selected.centre && !state.selected.boundaryFeature) {
+      const match = findBestParcelLayer(state.selected.centre);
+      if (match) {
+        state.selected.boundaryFeature = match.feature;
+        refreshSelectedBoundary();
+      }
+    }
   }
 
   async function loadArcGisGeoJson(options) {
     const { layerName, url, bounds, targetLayer, cache, abortKey, outFields } = options;
-    if (!url || !targetLayer) return;
+    if (!url || !targetLayer) return null;
 
     const cacheKey = makeBoundsCacheKey(bounds, layerName);
     if (cache.has(cacheKey)) {
-      applyGeoJsonToLayer(targetLayer, cache.get(cacheKey), layerName);
-      updateBoundaryStatus(layerName, cache.get(cacheKey));
-      return;
+      const cached = cache.get(cacheKey);
+      applyGeoJsonToLayer(targetLayer, cached);
+      updateBoundaryStatus(layerName, cached);
+      return cached;
     }
 
     if (state[abortKey]) {
@@ -419,14 +560,16 @@
 
       cache.set(cacheKey, geoJson);
       trimCache(cache);
-      applyGeoJsonToLayer(targetLayer, geoJson, layerName);
+      applyGeoJsonToLayer(targetLayer, geoJson);
       updateBoundaryStatus(layerName, geoJson);
+      return geoJson;
     } catch (error) {
-      if (error.name === "AbortError") return;
+      if (error.name === "AbortError") return null;
       console.warn(`Flatwise ${layerName} boundary load failed:`, error);
       if (layerName === "parcel") {
-        setStatus("LINZ parcel boundaries could not load right now. The base map still works, so try a small pan or zoom.");
+        setStatus("LINZ parcel boundaries could not load right now. Demo flat reviews still work.");
       }
+      return null;
     }
   }
 
@@ -469,7 +612,7 @@
       return;
     }
 
-    setStatus(`${count} LINZ parcel boundaries loaded. Hover to highlight a property, then click to select it.`);
+    setStatus(`${count} LINZ parcel boundaries loaded. Click a property outline to select it.`);
   }
 
   function isQueryTooLarge(bounds) {
@@ -514,6 +657,8 @@
   }
 
   function handleParcelHover(layer) {
+    if (!state.showPropertyLines) return;
+
     if (state.activeParcelLayer && state.activeParcelLayer !== layer) {
       handleParcelOut(state.activeParcelLayer);
     }
@@ -522,12 +667,13 @@
     layer.setStyle(parcelStyle("hover"));
     layer.bringToFront();
     state.elements.map?.classList.add("is-hovering-property");
-    setStatus("Property boundary highlighted. Click it to select and focus on this parcel.");
+    setStatus("Property boundary highlighted. Click it to select this parcel.");
   }
 
   function handleParcelOut(layer) {
     if (!layer) return;
-    if (state.selectedFeature && sameFeature(layer.feature, state.selectedFeature)) {
+    const selectedFeature = state.selected?.feature || state.selected?.boundaryFeature;
+    if (selectedFeature && sameFeature(layer.feature, selectedFeature)) {
       layer.setStyle(parcelStyle("muted"));
     } else {
       layer.setStyle(parcelStyle("normal"));
@@ -541,20 +687,133 @@
   }
 
   function selectParcel(feature, layer) {
-    state.selectedFeature = feature;
-    state.selectedBoundaryLayer.clearLayers();
-    state.selectedBoundaryLayer.addData(feature);
-
+    const id = `parcel:${propertyId(feature)}`;
     const bounds = layer.getBounds ? layer.getBounds() : getFeatureBounds(feature);
+    const centre = bounds?.isValid() ? bounds.getCenter() : getFeatureCentre(feature);
+
+    state.selected = {
+      type: "parcel",
+      id,
+      title: parcelTitle(feature),
+      centre,
+      feature,
+      boundaryFeature: feature,
+      demoFlat: null
+    };
+
+    refreshSelectedBoundary();
+
     if (bounds?.isValid()) {
       state.map.fitBounds(bounds.pad(0.36), { maxZoom: 19, animate: true, duration: 0.65 });
       setSelectedMarker(bounds.getCenter());
     }
 
     layer.setStyle(parcelStyle("muted"));
-    renderSelectedDetails(feature);
+    renderSelectedDetails();
     document.querySelector(".details-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    setStatus("Property selected. Boundary is outlined in red and the details panel is ready.");
+    setStatus("Property selected. Review panel is ready, and the outline is highlighted if the toggle is enabled.");
+  }
+
+  async function selectDemoFlat(flat, marker) {
+    const centre = L.latLng(flat.lat, flat.lng);
+
+    state.selected = {
+      type: "demo",
+      id: `demo:${flat.id}`,
+      title: flat.title,
+      centre,
+      feature: null,
+      boundaryFeature: null,
+      demoFlat: flat
+    };
+
+    setSelectedMarker(centre);
+    marker?.openPopup();
+    state.map.flyTo(centre, Math.max(state.map.getZoom(), 18), { duration: 0.75 });
+    renderSelectedDetails();
+    document.querySelector(".details-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+    if (state.showPropertyLines && state.highlightSelectedBoundary) {
+      setStatus("Demo flat selected. Loading nearby parcel lines so the clicked property can be outlined if LINZ returns a match.");
+      await loadParcelsAroundPoint(centre);
+      const match = findBestParcelLayer(centre);
+      if (match) {
+        state.selected.boundaryFeature = match.feature;
+        refreshSelectedBoundary();
+        renderSelectedDetails();
+        setStatus("Demo flat selected. Nearest LINZ parcel outline has been highlighted.");
+        return;
+      }
+    }
+
+    setStatus("Demo flat selected. Review sliders are ready below.");
+  }
+
+  async function loadParcelsAroundPoint(latLng) {
+    const delta = config.map?.pointParcelLookupDegrees || 0.0014;
+    const bounds = L.latLngBounds(
+      [latLng.lat - delta, latLng.lng - delta],
+      [latLng.lat + delta, latLng.lng + delta]
+    );
+
+    await loadArcGisGeoJson({
+      layerName: "parcel",
+      url: config.urls.parcels,
+      bounds,
+      targetLayer: state.parcelLayer,
+      cache: state.parcelCache,
+      abortKey: "parcelAbortController",
+      outFields: "id,appellation,purpose,shape_area,parcel_intent,topology_type,survey_reference"
+    });
+  }
+
+  function findBestParcelLayer(latLng) {
+    if (!state.parcelLayer || !latLng) return null;
+
+    let best = null;
+    let bestDistance = Infinity;
+
+    state.parcelLayer.eachLayer((layer) => {
+      if (!layer.getBounds || !layer.feature) return;
+      const bounds = layer.getBounds();
+      if (!bounds?.isValid()) return;
+
+      const contains = bounds.contains(latLng);
+      const centre = bounds.getCenter();
+      const distance = distanceMeters(latLng.lat, latLng.lng, centre.lat, centre.lng);
+
+      if (contains && distance < bestDistance) {
+        best = layer;
+        bestDistance = distance;
+      }
+    });
+
+    if (best) return best;
+
+    state.parcelLayer.eachLayer((layer) => {
+      if (!layer.getBounds || !layer.feature) return;
+      const bounds = layer.getBounds();
+      if (!bounds?.isValid()) return;
+
+      const centre = bounds.getCenter();
+      const distance = distanceMeters(latLng.lat, latLng.lng, centre.lat, centre.lng);
+      if (distance < bestDistance) {
+        best = layer;
+        bestDistance = distance;
+      }
+    });
+
+    return bestDistance < 95 ? best : null;
+  }
+
+  function refreshSelectedBoundary() {
+    state.selectedBoundaryLayer?.clearLayers();
+    if (!state.showPropertyLines || !state.highlightSelectedBoundary || !state.selected) return;
+
+    const feature = state.selected.feature || state.selected.boundaryFeature;
+    if (feature) {
+      state.selectedBoundaryLayer.addData(feature);
+    }
   }
 
   function setSelectedMarker(latLng) {
@@ -578,22 +837,26 @@
     state.elements.detailsContent?.classList.add("hidden");
   }
 
-  function renderSelectedDetails(feature) {
-    const title = parcelTitle(feature);
-    const id = propertyId(feature);
-    const centre = getFeatureCentre(feature);
+  function renderSelectedDetails() {
+    if (!state.selected) {
+      renderEmptyDetails();
+      return;
+    }
+
+    const target = state.selected;
+    const centre = target.centre || getFeatureCentre(target.feature);
     const rent = findRentArea(centre);
-    const reviews = getReviews(id);
+    const reviews = getReviewsForTarget(target);
     const average = calculateOverall(reviews);
 
     state.elements.detailsEmpty?.classList.add("hidden");
     state.elements.detailsContent?.classList.remove("hidden");
 
-    setText("selectedType", "Selected property");
-    setText("selectedTitle", title);
+    setText("selectedType", target.type === "demo" ? "Demo flat selected" : "Selected property parcel");
+    setText("selectedTitle", target.title);
     setText("selectedSuburb", rent?.name || "Wellington area");
-    setText("boundarySource", "LINZ NZ Primary Parcels");
-    setText("boundaryDescription", boundaryDescription(feature));
+    setText("boundarySource", boundarySourceText(target));
+    setText("boundaryDescription", boundaryDescriptionText(target));
     setRatingPill(state.elements.selectedScore, average);
 
     if (rent) {
@@ -604,13 +867,27 @@
       setText("rentDescription", "No demo rent guide is currently available for this selected area.");
     }
 
-    renderPhoto(centre, title);
+    renderPhoto(centre, target.title);
     renderRatingBreakdown(reviews);
     renderReviewList(reviews);
 
     if (state.elements.reviewDialogSuburb) {
-      state.elements.reviewDialogSuburb.textContent = title;
+      state.elements.reviewDialogSuburb.textContent = target.title;
     }
+  }
+
+  function boundarySourceText(target) {
+    if (target.type === "parcel") return "LINZ NZ Primary Parcels";
+    if (target.boundaryFeature) return "Demo flat + nearest LINZ parcel";
+    if (!state.showPropertyLines) return "Property lines disabled";
+    return "Demo flat marker";
+  }
+
+  function boundaryDescriptionText(target) {
+    if (target.type === "parcel" && target.feature) return boundaryDescription(target.feature);
+    if (target.boundaryFeature) return `Flatwise demo marker linked to nearby parcel: ${boundaryDescription(target.boundaryFeature)}`;
+    if (!state.showPropertyLines) return "Turn on property lines to show the parcel overlay when selecting a demo flat.";
+    return "Clicking a demo flat opens the review system. If nearby LINZ parcel geometry loads, Flatwise will outline the closest property boundary automatically.";
   }
 
   function renderPhoto(centre, title) {
@@ -654,7 +931,7 @@
     reviewFields.forEach((field) => {
       const value = calculateFieldAverage(reviews, field.key);
       const display = Number.isFinite(value) ? value.toFixed(1) : "—";
-      const width = Number.isFinite(value) ? `${Math.max(4, (value / 5) * 100)}%` : "0%";
+      const width = Number.isFinite(value) ? `${Math.max(3, (value / ratingScale) * 100)}%` : "0%";
 
       const row = document.createElement("div");
       row.className = "breakdown-row";
@@ -681,11 +958,20 @@
 
     reviews.slice().reverse().forEach((review) => {
       const card = document.createElement("article");
-      card.className = "review-card";
+      card.className = `review-card ${review.seed ? "seed-review" : ""}`;
       const score = calculateReviewScore(review);
-      const date = review.createdAt ? new Date(review.createdAt).toLocaleDateString() : "Saved locally";
+      const date = review.createdAt ? new Date(review.createdAt).toLocaleDateString() : "Demo review";
+      const recommend = review.recommend ? `Recommend: ${escapeHtml(review.recommend)}` : "";
+      const weeklyRent = review.weeklyRent ? `Rent: ${escapeHtml(review.weeklyRent)}` : "";
+      const period = review.tenancyPeriod ? `Period: ${escapeHtml(review.tenancyPeriod)}` : "";
+      const meta = [recommend, weeklyRent, period].filter(Boolean).join(" · ");
+
       card.innerHTML = `
-        <header><strong>${Number.isFinite(score) ? score.toFixed(1) : "—"} / 5</strong><span>${escapeHtml(date)}</span></header>
+        <header>
+          <strong>${Number.isFinite(score) ? score.toFixed(1) : "—"} / ${ratingScale}</strong>
+          <span>${escapeHtml(date)}${review.seed ? " · demo" : ""}</span>
+        </header>
+        ${meta ? `<div class="review-meta-line">${meta}</div>` : ""}
         <p>${escapeHtml(review.note || "No note added.")}</p>
       `;
       state.elements.reviewList.appendChild(card);
@@ -702,9 +988,9 @@
       wrapper.innerHTML = `
         <label for="rating-${field.key}">
           <span>${escapeHtml(field.label)}</span>
-          <output id="output-${field.key}">3</output>
+          <output id="output-${field.key}">${defaultRating}</output>
         </label>
-        <input id="rating-${field.key}" name="${field.key}" type="range" min="1" max="5" step="1" value="3" />
+        <input id="rating-${field.key}" name="${field.key}" type="range" min="1" max="${ratingScale}" step="1" value="${defaultRating}" />
         <small>${escapeHtml(field.hint)}</small>
       `;
 
@@ -719,13 +1005,16 @@
   }
 
   function openReviewDialog() {
-    if (!state.selectedFeature) {
-      setStatus("Select a property boundary before adding a review.");
+    if (!state.selected) {
+      setStatus("Select a demo flat marker or property boundary before adding a review.");
       scrollToMap();
       return;
     }
 
     if (!state.elements.reviewDialog) return;
+    if (state.elements.reviewDialogSuburb) {
+      state.elements.reviewDialogSuburb.textContent = state.selected.title;
+    }
 
     if (typeof state.elements.reviewDialog.showModal === "function") {
       state.elements.reviewDialog.showModal();
@@ -745,32 +1034,55 @@
   }
 
   function saveReview() {
-    if (!state.selectedFeature) return;
+    if (!state.selected) return;
 
     const review = {
       createdAt: new Date().toISOString(),
+      nickname: state.elements.reviewNickname?.value.trim() || "",
+      tenancyPeriod: state.elements.reviewTenancyPeriod?.value.trim() || "",
+      weeklyRent: state.elements.reviewWeeklyRent?.value.trim() || "",
+      recommend: state.elements.reviewRecommend?.value || "",
       note: state.elements.reviewNote?.value.trim() || "",
       ratings: {}
     };
 
     reviewFields.forEach((field) => {
       const input = document.getElementById(`rating-${field.key}`);
-      review.ratings[field.key] = Number(input?.value || 3);
+      review.ratings[field.key] = clampRating(Number(input?.value || defaultRating));
     });
 
-    const id = propertyId(state.selectedFeature);
-    const reviews = getReviews(id);
-    reviews.push(review);
-    localStorage.setItem(storageKey(id), JSON.stringify(reviews));
+    const localReviews = getLocalReviews(state.selected.id);
+    localReviews.push(review);
+    localStorage.setItem(storageKey(state.selected.id), JSON.stringify(localReviews));
 
-    state.elements.reviewForm?.reset();
-    reviewFields.forEach((field) => setText(`output-${field.key}`, "3"));
+    resetReviewForm();
     closeReviewDialog();
-    renderSelectedDetails(state.selectedFeature);
+    renderSelectedDetails();
+
+    if (state.selected.type === "demo" && state.selected.demoFlat) {
+      updateDemoMarker(state.selected.demoFlat);
+    }
+
     setStatus("Review saved locally in this browser.");
   }
 
-  function getReviews(id) {
+  function resetReviewForm() {
+    state.elements.reviewForm?.reset();
+    reviewFields.forEach((field) => setText(`output-${field.key}`, String(defaultRating)));
+  }
+
+  function getReviewsForTarget(target) {
+    if (!target) return [];
+    const seed = target.type === "demo" && target.demoFlat ? getSeedReviews(target.demoFlat) : [];
+    const local = getLocalReviews(target.id);
+    return [...seed, ...local];
+  }
+
+  function getSeedReviews(flat) {
+    return (flat.seedReviews || []).map((review) => ({ ...review, seed: true }));
+  }
+
+  function getLocalReviews(id) {
     try {
       const raw = localStorage.getItem(storageKey(id));
       const parsed = raw ? JSON.parse(raw) : [];
@@ -782,7 +1094,7 @@
   }
 
   function storageKey(id) {
-    return `${config.reviews?.storagePrefix || "flatwise_reviews_v2:"}${id}`;
+    return `${config.reviews?.storagePrefix || "flatwise_reviews_v3:"}${id}`;
   }
 
   function parcelStyle(type) {
@@ -792,24 +1104,24 @@
         weight: 3,
         opacity: 1,
         fillColor: "#1f7a4f",
-        fillOpacity: 0.2
+        fillOpacity: 0.18
       };
     }
 
     if (type === "selected") {
       return {
         color: "#b23a2f",
-        weight: 4,
+        weight: 4.5,
         opacity: 1,
         fillColor: "#b23a2f",
-        fillOpacity: 0.2
+        fillOpacity: 0.18
       };
     }
 
     if (type === "muted") {
       return {
         color: "#5e6965",
-        weight: 1.25,
+        weight: 1.3,
         opacity: 0.55,
         fillColor: "#fffaf0",
         fillOpacity: 0.04
@@ -873,6 +1185,7 @@
   }
 
   function getFeatureCentre(feature) {
+    if (!feature) return null;
     const bounds = getFeatureBounds(feature);
     if (!bounds?.isValid()) return null;
     return bounds.getCenter();
@@ -920,16 +1233,22 @@
   function calculateReviewScore(review) {
     const values = reviewFields
       .map((field) => Number(review.ratings?.[field.key]))
-      .filter(Number.isFinite);
+      .filter(Number.isFinite)
+      .map(clampRating);
 
     if (!values.length) return NaN;
     return values.reduce((sum, value) => sum + value, 0) / values.length;
   }
 
   function calculateFieldAverage(reviews, key) {
-    const values = reviews.map((review) => Number(review.ratings?.[key])).filter(Number.isFinite);
+    const values = reviews.map((review) => Number(review.ratings?.[key])).filter(Number.isFinite).map(clampRating);
     if (!values.length) return NaN;
     return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }
+
+  function clampRating(value) {
+    if (!Number.isFinite(value)) return defaultRating;
+    return Math.max(1, Math.min(ratingScale, value));
   }
 
   function setRatingPill(element, value) {
@@ -941,14 +1260,14 @@
       return;
     }
 
-    element.textContent = `${value.toFixed(1)} / 5`;
+    element.textContent = `${value.toFixed(1)} / ${ratingScale}`;
     element.classList.add(ratingClass(value));
   }
 
   function ratingClass(value) {
     if (!Number.isFinite(value)) return "warning";
-    if (value >= 3.8) return "good";
-    if (value <= 2.4) return "bad";
+    if (value >= ratingScale * 0.76) return "good";
+    if (value <= ratingScale * 0.45) return "bad";
     return "warning";
   }
 
@@ -983,6 +1302,13 @@
   function firstMeaningful(values) {
     const found = values.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
     return found === undefined ? "" : String(found).trim();
+  }
+
+  function slugify(value) {
+    return String(value)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || `flat-${Date.now()}`;
   }
 
   function escapeHtml(value) {

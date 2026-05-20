@@ -7,7 +7,8 @@ window.FLATWISE_CONFIG = {
     parcelLoadZoom: 16,
     buildingLoadZoom: 18,
     maxQueryAreaDegrees: 0.018,
-    boundaryDebounceMs: 320
+    boundaryDebounceMs: 320,
+    pointParcelLookupDegrees: 0.0014
   },
 
   urls: {
@@ -18,7 +19,8 @@ window.FLATWISE_CONFIG = {
   },
 
   reviews: {
-    storagePrefix: "flatwise_reviews_v2:"
+    storagePrefix: "flatwise_reviews_v3:",
+    ratingScale: 10
   },
 
   streetView: {

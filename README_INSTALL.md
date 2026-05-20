@@ -1,54 +1,53 @@
-# Flatwise.nz SRI + Stable Map Fix
+# Flatwise.nz — Review System Upgrade
 
-This package is a full GitHub Pages-ready replacement build for the Flatwise.nz prototype.
+This package is a full GitHub Pages-ready version of Flatwise with the SRI fix, stable Leaflet setup, demo flat review flow, and optional property-line highlighting.
 
 ## What changed
 
-1. `index.html` now uses the corrected Leaflet 1.9.4 CSS SRI hash:
+1. The Leaflet CSS Subresource Integrity hash has been corrected in `index.html`.
 
-   `sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=`
+2. Demo flat markers are now selectable. Click a marker and the details panel opens with seeded demo reviews.
 
-2. Leaflet JavaScript keeps the official 1.9.4 hash:
+3. The review form now uses a professional 1–10 rental rating system. Reviews are saved locally in the browser through `localStorage`, so the prototype works without accounts or a backend.
 
-   `sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=`
+4. Reviews include optional context fields. A tester can add a nickname, tenancy period, weekly rent paid, recommendation, and tenant note.
 
-3. The map uses whole-number zoom steps. This avoids fractional raster tile scaling that can make streets look split while zooming.
+5. Property-line highlighting is optional. The map includes toggles for showing LINZ property lines and highlighting the selected outline.
 
-4. Global image styling is prevented from affecting Leaflet tiles. This fixes a common cause of stretched or incomplete map tiles.
+6. Clicking a demo flat tries to load the nearest LINZ parcel outline and highlight it when the boundary service returns a match.
 
-5. Tile loading now has retry handling. A small loading badge appears while tiles are being requested.
+7. The map cursor has been forced back to a normal arrow instead of the grab or hand cursor.
 
-6. LINZ property parcel boundaries load only when the map is close enough. This keeps the browser fast and avoids massive boundary requests.
+## Install
 
-7. Hovering a parcel highlights its boundary. Clicking it selects the property, focuses the map, and opens the review panel.
+Copy all files from this folder into the root of your `Flatwise.nz` GitHub repository.
 
-8. Building outlines load at closer zoom levels as a lighter secondary layer.
-
-## How to install
-
-Copy these files and folders into the root of your `Flatwise.nz` repository:
+Replace the existing files when asked:
 
 - `index.html`
-- `assets/`
-- `css/`
-- `data/`
-- `js/`
+- `css/style.css`
+- `js/app.js`
+- `js/config.js`
+- `data/rent-data.json`
+- `assets/logo.svg`
 
-Commit and push to GitHub. GitHub Pages should then redeploy the site.
+Commit and push to GitHub Pages.
 
-## Important note about data
+## Test checklist
 
-The rent guide inside `data/rent-data.json` is only demo placeholder data. For a real public version, replace it with official New Zealand rental data.
+Open the live site and check these flows:
 
-## Optional Street View images
+1. The map loads without the Chrome SRI error.
+2. The map displays with Leaflet styles applied correctly.
+3. The cursor over the map stays as a normal arrow.
+4. Clicking a demo flat marker opens the details panel.
+5. Clicking “Review selected” opens the 1–10 review form.
+6. Saving a review updates the score and adds the note locally.
+7. Turning property lines off clears the LINZ overlays while the demo reviews still work.
+8. Turning property lines back on loads parcel lines again when zoomed in.
 
-Open `js/config.js` and change:
+## Notes
 
-```js
-streetView: {
-  enableGoogleStreetView: true,
-  googleStreetViewApiKey: "YOUR_RESTRICTED_KEY"
-}
-```
+The current review system is a prototype. For a real public version, you would want user accounts, moderation, privacy rules, abuse reporting, and a database instead of localStorage.
 
-Use a restricted browser key only. Restrict it to your GitHub Pages domain and to the Street View Static API.
+The rent data and review data in `data/rent-data.json` are demo placeholders. Replace them with an official or properly licensed data source before treating the information as real.

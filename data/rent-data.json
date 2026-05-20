@@ -40,25 +40,91 @@
   ],
   "demoFlats": [
     {
+      "id": "te-aro-demo-flat",
       "title": "Te Aro demo flat",
       "lat": -41.2944,
       "lng": 174.7769,
-      "score": 3.1,
-      "note": "Demo marker showing where tenant reviews could appear."
+      "score": 6.2,
+      "note": "Demo review marker showing a mixed but liveable inner-city flat.",
+      "seedReviews": [
+        {
+          "createdAt": "2026-05-02T09:15:00.000Z",
+          "tenancyPeriod": "2024–2025",
+          "weeklyRent": "$690 / week",
+          "recommend": "Maybe",
+          "note": "Good location and easy to get into town, but the bedrooms were cold in winter and condensation built up quickly unless windows stayed open.",
+          "ratings": {
+            "rentValue": 6,
+            "warmthInsulation": 4,
+            "drynessMould": 5,
+            "repairsResponse": 6,
+            "noisePrivacy": 5,
+            "safetySecurity": 7,
+            "sunlightVentilation": 6,
+            "waterPowerReliability": 8,
+            "landlordCommunication": 7,
+            "overallLiveability": 6
+          }
+        }
+      ]
     },
     {
+      "id": "kelburn-demo-flat",
       "title": "Kelburn demo flat",
       "lat": -41.2891,
       "lng": 174.7667,
-      "score": 4.0,
-      "note": "Demo marker with a stronger local score."
+      "score": 8.1,
+      "note": "Demo review marker showing a stronger rental experience.",
+      "seedReviews": [
+        {
+          "createdAt": "2026-04-18T11:30:00.000Z",
+          "tenancyPeriod": "2025",
+          "weeklyRent": "$735 / week",
+          "recommend": "Yes",
+          "note": "A surprisingly dry flat for the area. It still needed heating during colder weeks, but maintenance was handled quickly and the place felt secure.",
+          "ratings": {
+            "rentValue": 7,
+            "warmthInsulation": 8,
+            "drynessMould": 8,
+            "repairsResponse": 9,
+            "noisePrivacy": 8,
+            "safetySecurity": 9,
+            "sunlightVentilation": 8,
+            "waterPowerReliability": 9,
+            "landlordCommunication": 8,
+            "overallLiveability": 8
+          }
+        }
+      ]
     },
     {
+      "id": "mount-cook-demo-flat",
       "title": "Mount Cook demo flat",
       "lat": -41.3017,
       "lng": 174.7714,
-      "score": 2.3,
-      "note": "Demo marker showing a warning-style score."
+      "score": 4.1,
+      "note": "Demo review marker showing a warning-style score.",
+      "seedReviews": [
+        {
+          "createdAt": "2026-03-27T08:10:00.000Z",
+          "tenancyPeriod": "2023–2024",
+          "weeklyRent": "$650 / week",
+          "recommend": "No",
+          "note": "The location was useful, but the flat was damp and repairs took too long. It would need real improvements before I would suggest it to someone else.",
+          "ratings": {
+            "rentValue": 4,
+            "warmthInsulation": 3,
+            "drynessMould": 2,
+            "repairsResponse": 3,
+            "noisePrivacy": 5,
+            "safetySecurity": 6,
+            "sunlightVentilation": 4,
+            "waterPowerReliability": 6,
+            "landlordCommunication": 4,
+            "overallLiveability": 4
+          }
+        }
+      ]
     }
   ]
 }
