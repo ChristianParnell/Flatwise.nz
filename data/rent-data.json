@@ -1,40 +1,40 @@
 {
   "updated": "2026-05-20",
-  "note": "Demo data for the GitHub Pages prototype. Replace this with official MBIE or Tenancy Services market-rent data for a real launch.",
+  "note": "Demo data for the GitHub Pages prototype. Demo flats include approximate GeoJSON boundaries so selected properties can always be highlighted without a backend. Replace demo content with official MBIE/Tenancy Services data and verified property geometry before a public launch.",
   "areas": [
     {
       "name": "Te Aro",
       "lat": -41.2946,
       "lng": 174.7756,
-      "weeklyRent": "$620–$760 per week",
+      "weeklyRent": "$620\u2013$760 per week",
       "description": "Demo inner-city guidance for a typical two-bedroom flat. Use this only as placeholder content until official market-rent data is connected."
     },
     {
       "name": "Mount Cook",
       "lat": -41.3013,
       "lng": 174.7701,
-      "weeklyRent": "$590–$730 per week",
+      "weeklyRent": "$590\u2013$730 per week",
       "description": "Demo guidance for flats around Mount Cook and nearby central Wellington streets."
     },
     {
       "name": "Kelburn",
       "lat": -41.2895,
       "lng": 174.7665,
-      "weeklyRent": "$610–$780 per week",
+      "weeklyRent": "$610\u2013$780 per week",
       "description": "Demo guidance for student-heavy hillside flats near the university area."
     },
     {
       "name": "Newtown",
       "lat": -41.3118,
       "lng": 174.7796,
-      "weeklyRent": "$570–$720 per week",
+      "weeklyRent": "$570\u2013$720 per week",
       "description": "Demo guidance for Newtown flats. Actual pricing needs an official rental dataset before public use."
     },
     {
       "name": "Thorndon",
       "lat": -41.2766,
       "lng": 174.7772,
-      "weeklyRent": "$620–$790 per week",
+      "weeklyRent": "$620\u2013$790 per week",
       "description": "Demo guidance for central-north Wellington flats and apartments."
     }
   ],
@@ -49,7 +49,7 @@
       "seedReviews": [
         {
           "createdAt": "2026-05-02T09:15:00.000Z",
-          "tenancyPeriod": "2024–2025",
+          "tenancyPeriod": "2024\u20132025",
           "weeklyRent": "$690 / week",
           "recommend": "Maybe",
           "note": "Good location and easy to get into town, but the bedrooms were cold in winter and condensation built up quickly unless windows stayed open.",
@@ -66,7 +66,45 @@
             "overallLiveability": 6
           }
         }
-      ]
+      ],
+      "boundary": {
+        "type": "Feature",
+        "properties": {
+          "id": "demo-boundary-te-aro-demo-flat",
+          "appellation": "Te Aro demo flat boundary",
+          "purpose": "Demo property boundary",
+          "parcel_intent": "Demo parcel outline",
+          "topology_type": "Flatwise demo geometry",
+          "_flatwise_demo_boundary": true
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                174.77671500000002,
+                -41.294565000000006
+              ],
+              [
+                174.777125,
+                -41.294535
+              ],
+              [
+                174.777085,
+                -41.294235
+              ],
+              [
+                174.776675,
+                -41.294265
+              ],
+              [
+                174.77671500000002,
+                -41.294565000000006
+              ]
+            ]
+          ]
+        }
+      }
     },
     {
       "id": "kelburn-demo-flat",
@@ -95,7 +133,45 @@
             "overallLiveability": 8
           }
         }
-      ]
+      ],
+      "boundary": {
+        "type": "Feature",
+        "properties": {
+          "id": "demo-boundary-kelburn-demo-flat",
+          "appellation": "Kelburn demo flat boundary",
+          "purpose": "Demo property boundary",
+          "parcel_intent": "Demo parcel outline",
+          "topology_type": "Flatwise demo geometry",
+          "_flatwise_demo_boundary": true
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                174.766515,
+                -41.289265
+              ],
+              [
+                174.766925,
+                -41.289235
+              ],
+              [
+                174.76688499999997,
+                -41.288934999999995
+              ],
+              [
+                174.76647499999999,
+                -41.288965
+              ],
+              [
+                174.766515,
+                -41.289265
+              ]
+            ]
+          ]
+        }
+      }
     },
     {
       "id": "mount-cook-demo-flat",
@@ -107,7 +183,7 @@
       "seedReviews": [
         {
           "createdAt": "2026-03-27T08:10:00.000Z",
-          "tenancyPeriod": "2023–2024",
+          "tenancyPeriod": "2023\u20132024",
           "weeklyRent": "$650 / week",
           "recommend": "No",
           "note": "The location was useful, but the flat was damp and repairs took too long. It would need real improvements before I would suggest it to someone else.",
@@ -124,7 +200,45 @@
             "overallLiveability": 4
           }
         }
-      ]
+      ],
+      "boundary": {
+        "type": "Feature",
+        "properties": {
+          "id": "demo-boundary-mount-cook-demo-flat",
+          "appellation": "Mount Cook demo flat boundary",
+          "purpose": "Demo property boundary",
+          "parcel_intent": "Demo parcel outline",
+          "topology_type": "Flatwise demo geometry",
+          "_flatwise_demo_boundary": true
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                174.771215,
+                -41.301865
+              ],
+              [
+                174.771625,
+                -41.301835
+              ],
+              [
+                174.771585,
+                -41.301534999999994
+              ],
+              [
+                174.771175,
+                -41.301565
+              ],
+              [
+                174.771215,
+                -41.301865
+              ]
+            ]
+          ]
+        }
+      }
     }
   ]
 }

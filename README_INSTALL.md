@@ -51,3 +51,12 @@ Open the live site and check these flows:
 The current review system is a prototype. For a real public version, you would want user accounts, moderation, privacy rules, abuse reporting, and a database instead of localStorage.
 
 The rent data and review data in `data/rent-data.json` are demo placeholders. Replace them with an official or properly licensed data source before treating the information as real.
+
+
+## Version 3 changes
+
+This package now uses an inline review composer instead of a modal-only review flow. Click a demo flat or a LINZ parcel boundary, and Flatwise will highlight the selected property outline, move the map to that property, then scroll down to the review form.
+
+Demo flats include approximate GeoJSON boundary polygons in `data/rent-data.json`. This means the selected outline appears immediately, even before the optional LINZ parcel lookup finishes. When LINZ returns a nearby official parcel, Flatwise swaps the demo outline for that parcel.
+
+Reviews are still saved locally with `localStorage`, so the prototype works on GitHub Pages without a backend. For a real public launch, you would add accounts, moderation, privacy protections, dispute reporting, and a proper database.

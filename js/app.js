@@ -108,9 +108,9 @@
       "heroWellingtonButton", "focusButton", "reviewButton", "topReviewButton", "inlineReviewButton",
       "propertyLinesToggle", "selectedBoundaryToggle", "detailsEmpty", "detailsContent", "photoFrame",
       "selectedType", "selectedTitle", "selectedSuburb", "selectedScore", "rentBenchmark", "rentDescription",
-      "boundarySource", "boundaryDescription", "reviewCount", "ratingBreakdown", "reviewList", "reviewDialog",
-      "reviewForm", "reviewDialogSuburb", "ratingInputs", "reviewNote", "reviewNickname", "reviewTenancyPeriod",
-      "reviewWeeklyRent", "reviewRecommend", "cancelReview", "closeDialog"
+      "boundarySource", "boundaryDescription", "reviewCount", "ratingBreakdown", "reviewList", "reviewComposer",
+      "reviewForm", "reviewTargetLabel", "ratingInputs", "reviewNote", "reviewNickname", "reviewTenancyPeriod",
+      "reviewWeeklyRent", "reviewRecommend", "cancelReview"
     ];
 
     ids.forEach((id) => {
@@ -276,8 +276,10 @@
     state.elements.reviewButton?.addEventListener("click", openReviewDialog);
     state.elements.topReviewButton?.addEventListener("click", openReviewDialog);
     state.elements.inlineReviewButton?.addEventListener("click", openReviewDialog);
-    state.elements.cancelReview?.addEventListener("click", closeReviewDialog);
-    state.elements.closeDialog?.addEventListener("click", closeReviewDialog);
+    state.elements.cancelReview?.addEventListener("click", () => {
+      resetReviewForm();
+      setStatus("Review form cleared. The selected property is still active.");
+    });
     state.elements.clearSearch?.addEventListener("click", clearSearch);
 
     state.elements.propertyLinesToggle?.addEventListener("change", () => {
@@ -285,8 +287,8 @@
       if (!state.showPropertyLines) {
         state.parcelLayer?.clearLayers();
         state.buildingLayer?.clearLayers();
-        state.selectedBoundaryLayer?.clearLayers();
-        setStatus("Property-line overlay turned off. Demo flat reviews still work normally.");
+        refreshSelectedBoundary();
+        setStatus("Property-line overlay turned off. The selected property outline will still show when available.");
         return;
       }
       setStatus("Property-line overlay turned on. Zoom closer if boundaries do not appear yet.");
@@ -319,6 +321,19 @@
 
   function scrollToMap() {
     document.getElementById("mapArea")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function scrollToReviewComposer(options = {}) {
+    const target = state.elements.reviewComposer || state.elements.detailsContent || document.querySelector(".details-panel");
+    if (!target) return;
+
+    const delay = Number.isFinite(options.delay) ? options.delay : 180;
+    window.setTimeout(() => {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (options.focusNote && state.elements.reviewNote) {
+        window.setTimeout(() => state.elements.reviewNote.focus({ preventScroll: true }), 300);
+      }
+    }, delay);
   }
 
   function focusSelected() {
@@ -518,7 +533,7 @@
       state.buildingLayer.clearLayers();
     }
 
-    if (state.selected?.type === "demo" && state.selected.centre && !state.selected.boundaryFeature) {
+    if (state.selected?.type === "demo" && state.selected.centre && (!state.selected.boundaryFeature || isDemoBoundaryFeature(state.selected.boundaryFeature))) {
       const match = findBestParcelLayer(state.selected.centre);
       if (match) {
         state.selected.boundaryFeature = match.feature;
@@ -710,12 +725,13 @@
 
     layer.setStyle(parcelStyle("muted"));
     renderSelectedDetails();
-    document.querySelector(".details-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    setStatus("Property selected. Review panel is ready, and the outline is highlighted if the toggle is enabled.");
+    scrollToReviewComposer({ focusNote: false });
+    setStatus("Property selected. Boundary highlighted, and the review form is ready below.");
   }
 
   async function selectDemoFlat(flat, marker) {
     const centre = L.latLng(flat.lat, flat.lng);
+    const demoBoundary = getDemoBoundaryFeature(flat);
 
     state.selected = {
       type: "demo",
@@ -723,30 +739,31 @@
       title: flat.title,
       centre,
       feature: null,
-      boundaryFeature: null,
+      boundaryFeature: demoBoundary,
       demoFlat: flat
     };
 
     setSelectedMarker(centre);
     marker?.openPopup();
     state.map.flyTo(centre, Math.max(state.map.getZoom(), 18), { duration: 0.75 });
+    refreshSelectedBoundary();
     renderSelectedDetails();
-    document.querySelector(".details-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    scrollToReviewComposer({ focusNote: false });
 
     if (state.showPropertyLines && state.highlightSelectedBoundary) {
-      setStatus("Demo flat selected. Loading nearby parcel lines so the clicked property can be outlined if LINZ returns a match.");
+      setStatus("Demo flat selected. Boundary highlighted with demo geometry while Flatwise checks for the nearest LINZ parcel.");
       await loadParcelsAroundPoint(centre);
       const match = findBestParcelLayer(centre);
       if (match) {
         state.selected.boundaryFeature = match.feature;
         refreshSelectedBoundary();
         renderSelectedDetails();
-        setStatus("Demo flat selected. Nearest LINZ parcel outline has been highlighted.");
+        setStatus("Demo flat selected. Nearest LINZ parcel outline has replaced the demo boundary, and the review form is ready below.");
         return;
       }
     }
 
-    setStatus("Demo flat selected. Review sliders are ready below.");
+    setStatus("Demo flat selected. Boundary highlighted, and the review form is ready below.");
   }
 
   async function loadParcelsAroundPoint(latLng) {
@@ -806,9 +823,65 @@
     return bestDistance < 95 ? best : null;
   }
 
+  function getDemoBoundaryFeature(flat) {
+    if (flat?.boundary?.type === "Feature" && flat.boundary.geometry) {
+      const feature = structuredCloneSafe(flat.boundary);
+      feature.properties = {
+        ...(feature.properties || {}),
+        id: feature.properties?.id || `demo-boundary-${flat.id}`,
+        appellation: feature.properties?.appellation || `${flat.title} boundary`,
+        purpose: feature.properties?.purpose || "Demo property boundary",
+        _flatwise_demo_boundary: true
+      };
+      return feature;
+    }
+
+    if (!Number.isFinite(flat?.lat) || !Number.isFinite(flat?.lng)) return null;
+
+    const lat = flat.lat;
+    const lng = flat.lng;
+    const latA = 0.000135;
+    const latB = 0.000165;
+    const lngA = 0.000185;
+    const lngB = 0.000225;
+
+    return {
+      type: "Feature",
+      properties: {
+        id: `demo-boundary-${flat.id || slugify(flat.title || "flat")}`,
+        appellation: `${flat.title || "Demo flat"} boundary`,
+        purpose: "Demo property boundary",
+        parcel_intent: "Demo parcel outline",
+        topology_type: "Flatwise demo geometry",
+        _flatwise_demo_boundary: true
+      },
+      geometry: {
+        type: "Polygon",
+        coordinates: [[
+          [lng - lngA, lat - latB],
+          [lng + lngB, lat - latA],
+          [lng + lngA, lat + latB],
+          [lng - lngB, lat + latA],
+          [lng - lngA, lat - latB]
+        ]]
+      }
+    };
+  }
+
+  function isDemoBoundaryFeature(feature) {
+    return Boolean(feature?.properties?._flatwise_demo_boundary || String(feature?.properties?.id || "").startsWith("demo-boundary-"));
+  }
+
+  function structuredCloneSafe(value) {
+    if (typeof structuredClone === "function") {
+      return structuredClone(value);
+    }
+    return JSON.parse(JSON.stringify(value));
+  }
+
   function refreshSelectedBoundary() {
     state.selectedBoundaryLayer?.clearLayers();
-    if (!state.showPropertyLines || !state.highlightSelectedBoundary || !state.selected) return;
+    if (!state.highlightSelectedBoundary || !state.selected) return;
 
     const feature = state.selected.feature || state.selected.boundaryFeature;
     if (feature) {
@@ -835,6 +908,9 @@
   function renderEmptyDetails() {
     state.elements.detailsEmpty?.classList.remove("hidden");
     state.elements.detailsContent?.classList.add("hidden");
+    if (state.elements.reviewTargetLabel) {
+      state.elements.reviewTargetLabel.textContent = "No flat selected";
+    }
   }
 
   function renderSelectedDetails() {
@@ -871,13 +947,14 @@
     renderRatingBreakdown(reviews);
     renderReviewList(reviews);
 
-    if (state.elements.reviewDialogSuburb) {
-      state.elements.reviewDialogSuburb.textContent = target.title;
+    if (state.elements.reviewTargetLabel) {
+      state.elements.reviewTargetLabel.textContent = target.title;
     }
   }
 
   function boundarySourceText(target) {
     if (target.type === "parcel") return "LINZ NZ Primary Parcels";
+    if (target.boundaryFeature && isDemoBoundaryFeature(target.boundaryFeature)) return "Demo flat boundary";
     if (target.boundaryFeature) return "Demo flat + nearest LINZ parcel";
     if (!state.showPropertyLines) return "Property lines disabled";
     return "Demo flat marker";
@@ -885,6 +962,7 @@
 
   function boundaryDescriptionText(target) {
     if (target.type === "parcel" && target.feature) return boundaryDescription(target.feature);
+    if (target.boundaryFeature && isDemoBoundaryFeature(target.boundaryFeature)) return `Flatwise is showing an approximate demo outline for this flat: ${boundaryDescription(target.boundaryFeature)}`;
     if (target.boundaryFeature) return `Flatwise demo marker linked to nearby parcel: ${boundaryDescription(target.boundaryFeature)}`;
     if (!state.showPropertyLines) return "Turn on property lines to show the parcel overlay when selecting a demo flat.";
     return "Clicking a demo flat opens the review system. If nearby LINZ parcel geometry loads, Flatwise will outline the closest property boundary automatically.";
@@ -1006,31 +1084,13 @@
 
   function openReviewDialog() {
     if (!state.selected) {
-      setStatus("Select a demo flat marker or property boundary before adding a review.");
+      setStatus("Select a demo flat marker or property boundary before writing a review.");
       scrollToMap();
       return;
     }
 
-    if (!state.elements.reviewDialog) return;
-    if (state.elements.reviewDialogSuburb) {
-      state.elements.reviewDialogSuburb.textContent = state.selected.title;
-    }
-
-    if (typeof state.elements.reviewDialog.showModal === "function") {
-      state.elements.reviewDialog.showModal();
-    } else {
-      state.elements.reviewDialog.setAttribute("open", "open");
-    }
-  }
-
-  function closeReviewDialog() {
-    if (!state.elements.reviewDialog) return;
-
-    if (typeof state.elements.reviewDialog.close === "function") {
-      state.elements.reviewDialog.close();
-    } else {
-      state.elements.reviewDialog.removeAttribute("open");
-    }
+    scrollToReviewComposer({ focusNote: true, delay: 80 });
+    setStatus("Review form ready. Your rating will be saved locally for the selected flat.");
   }
 
   function saveReview() {
@@ -1043,6 +1103,8 @@
       weeklyRent: state.elements.reviewWeeklyRent?.value.trim() || "",
       recommend: state.elements.reviewRecommend?.value || "",
       note: state.elements.reviewNote?.value.trim() || "",
+      propertyTitle: state.selected.title,
+      propertyId: state.selected.id,
       ratings: {}
     };
 
@@ -1056,8 +1118,8 @@
     localStorage.setItem(storageKey(state.selected.id), JSON.stringify(localReviews));
 
     resetReviewForm();
-    closeReviewDialog();
     renderSelectedDetails();
+    scrollToReviewComposer({ delay: 80 });
 
     if (state.selected.type === "demo" && state.selected.demoFlat) {
       updateDemoMarker(state.selected.demoFlat);
@@ -1169,6 +1231,10 @@
     const p = feature?.properties || {};
     const purpose = firstMeaningful([p.purpose, p.parcel_intent, p.topology_type]);
     const area = Number(p.shape_area || p.Shape__Area || p.SHAPE__Area);
+
+    if (isDemoBoundaryFeature(feature)) {
+      return `${purpose || "Demo property boundary"}. Approximate outline included for the demo flat so the selected property can always be highlighted.`;
+    }
 
     if (Number.isFinite(area) && area > 0) {
       return `${purpose || "Primary parcel"}. Approximate parcel area: ${Math.round(area).toLocaleString()} square metres.`;

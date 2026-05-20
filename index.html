@@ -34,7 +34,7 @@
       <nav class="nav-actions" aria-label="Primary actions">
         <a href="#mapArea">Map</a>
         <a href="#how">How it works</a>
-        <button id="topReviewButton" class="primary-button" type="button">Review selected</button>
+        <button id="topReviewButton" class="primary-button" type="button">Write review</button>
       </nav>
     </header>
 
@@ -96,7 +96,7 @@
             <div class="toolbar-actions">
               <button id="wellingtonButton" class="secondary-button" type="button">Wellington</button>
               <button id="focusButton" class="secondary-button" type="button">Focus selected</button>
-              <button id="reviewButton" class="primary-button" type="button">Review selected</button>
+              <button id="reviewButton" class="primary-button" type="button">Write review</button>
             </div>
           </div>
 
@@ -128,7 +128,7 @@
           <div id="detailsEmpty" class="details-empty">
             <div class="empty-icon">⌂</div>
             <h3>No flat selected yet</h3>
-            <p>Click one of the demo flat markers, or zoom closer and click an official parcel boundary. Flatwise will then show rent guidance, rating breakdowns, notes, and the review form.</p>
+            <p>Click one of the demo flat markers, or zoom closer and click an official parcel boundary. Flatwise will highlight the selected property outline, then scroll you down to the review form.</p>
           </div>
 
           <div id="detailsContent" class="details-content hidden">
@@ -164,9 +164,59 @@
 
               <div class="panel-title-row">
                 <h4>Tenant notes</h4>
-                <button id="inlineReviewButton" class="text-button" type="button">Add review</button>
+                <button id="inlineReviewButton" class="text-button" type="button">Jump to review form</button>
               </div>
               <div id="reviewList" class="review-list"></div>
+
+              <section id="reviewComposer" class="review-composer" aria-label="Write your rental review">
+                <div class="composer-head">
+                  <div>
+                    <p class="eyebrow">Write your own review</p>
+                    <h4>Score this flat after selecting it on the map.</h4>
+                    <p>Currently reviewing: <strong id="reviewTargetLabel">No flat selected</strong></p>
+                  </div>
+                  <span class="composer-badge">Saved locally</span>
+                </div>
+
+                <form id="reviewForm" class="inline-review-form">
+                  <div class="review-meta-grid">
+                    <label class="field-block" for="reviewNickname">
+                      Optional nickname
+                      <input id="reviewNickname" name="nickname" type="text" maxlength="40" placeholder="Example: Former tenant" />
+                    </label>
+                    <label class="field-block" for="reviewTenancyPeriod">
+                      Tenancy period
+                      <input id="reviewTenancyPeriod" name="tenancyPeriod" type="text" maxlength="40" placeholder="Example: 2024–2025" />
+                    </label>
+                    <label class="field-block" for="reviewWeeklyRent">
+                      Weekly rent paid
+                      <input id="reviewWeeklyRent" name="weeklyRent" type="text" maxlength="40" placeholder="Example: $690 / week" />
+                    </label>
+                    <label class="field-block" for="reviewRecommend">
+                      Would you recommend it?
+                      <select id="reviewRecommend" name="recommend">
+                        <option value="">Prefer not to say</option>
+                        <option value="Yes">Yes</option>
+                        <option value="Maybe">Maybe</option>
+                        <option value="No">No</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <div id="ratingInputs" class="form-grid"></div>
+
+                  <label class="field-block" for="reviewNote">
+                    Your written review
+                    <textarea id="reviewNote" name="note" rows="5" maxlength="900" placeholder="Example: The location was useful, but the bedroom windows collected condensation all winter..."></textarea>
+                  </label>
+
+                  <div class="dialog-actions">
+                    <button class="secondary-button" type="button" id="cancelReview">Clear form</button>
+                    <button class="primary-button" type="submit">Save review locally</button>
+                  </div>
+                  <p class="small-print">Prototype only: your review is saved in this browser with localStorage. A real public version should include verification, moderation, dispute reporting, and privacy protection.</p>
+                </form>
+              </section>
             </div>
           </div>
         </section>
@@ -189,55 +239,6 @@
     </main>
   </div>
 
-  <dialog id="reviewDialog" class="review-dialog">
-    <form id="reviewForm" method="dialog">
-      <div class="dialog-head">
-        <div>
-          <p class="eyebrow">Leave a Flatwise review</p>
-          <h3>Review this selected rental</h3>
-          <p id="reviewDialogSuburb">No flat selected</p>
-        </div>
-        <button id="closeDialog" class="icon-button" type="button" aria-label="Close dialog">×</button>
-      </div>
-
-      <div class="review-meta-grid">
-        <label class="field-block" for="reviewNickname">
-          Optional nickname
-          <input id="reviewNickname" name="nickname" type="text" maxlength="40" placeholder="Example: Former tenant" />
-        </label>
-        <label class="field-block" for="reviewTenancyPeriod">
-          Tenancy period
-          <input id="reviewTenancyPeriod" name="tenancyPeriod" type="text" maxlength="40" placeholder="Example: 2024–2025" />
-        </label>
-        <label class="field-block" for="reviewWeeklyRent">
-          Weekly rent paid
-          <input id="reviewWeeklyRent" name="weeklyRent" type="text" maxlength="40" placeholder="Example: $690 / week" />
-        </label>
-        <label class="field-block" for="reviewRecommend">
-          Would you recommend it?
-          <select id="reviewRecommend" name="recommend">
-            <option value="">Prefer not to say</option>
-            <option value="Yes">Yes</option>
-            <option value="Maybe">Maybe</option>
-            <option value="No">No</option>
-          </select>
-        </label>
-      </div>
-
-      <div id="ratingInputs" class="form-grid"></div>
-
-      <label class="field-block" for="reviewNote">
-        Tenant note
-        <textarea id="reviewNote" name="note" rows="4" maxlength="700" placeholder="Example: Warm enough in summer, but the bedroom windows collected condensation all winter..."></textarea>
-      </label>
-
-      <div class="dialog-actions">
-        <button class="secondary-button" type="button" id="cancelReview">Cancel</button>
-        <button class="primary-button" type="submit">Save review locally</button>
-      </div>
-      <p class="small-print">Prototype only: reviews are saved in this browser with localStorage. A real public version should include verification, moderation, dispute reporting, and privacy protection.</p>
-    </form>
-  </dialog>
 
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
