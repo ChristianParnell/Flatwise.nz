@@ -1,36 +1,28 @@
 window.FLATWISE_CONFIG = {
-  defaultMapCenter: [-41.29484, 174.77885],
-  defaultZoom: 17,
-  minBoundaryZoom: 16,
-  maxBoundaryZoom: 19,
+  map: {
+    startCenter: [-41.2924, 174.7787],
+    startZoom: 17,
+    minZoom: 6,
+    maxZoom: 20,
+    parcelLoadZoom: 16,
+    buildingLoadZoom: 18,
+    maxQueryAreaDegrees: 0.018,
+    boundaryDebounceMs: 320
+  },
 
-  mapBounds: [[-47.8, 165.5], [-33.8, 179.5]],
+  urls: {
+    parcels: "https://services.arcgis.com/xdsHIIxuCWByZiCB/arcgis/rest/services/LINZ_NZ_Primary_Parcels/FeatureServer/0/query",
+    buildings: "https://services.arcgis.com/xdsHIIxuCWByZiCB/ArcGIS/rest/services/LINZ_NZ_Building_Outlines/FeatureServer/0/query",
+    nominatim: "https://nominatim.openstreetmap.org/search",
+    rentData: "data/rent-data.json"
+  },
 
-  osmTileUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  reviews: {
+    storagePrefix: "flatwise_reviews_v2:"
+  },
 
-  // HUGE TILE MODE
-  // 1024 + -2 makes each displayed Leaflet tile cover a much larger map area.
-  // If it looks too blurry, change these to 512 and -1.
-  mapTileSize: 512,
-  mapTileZoomOffset: -1,
-  mapMaxNativeZoom: 19,
-  mapTileKeepBuffer: 6,
-  mapUpdateWhenZooming: false,
-  mapUpdateWhenIdle: true,
-  mapUpdateInterval: 300,
-
-  // LINZ boundary loading area.
-  // This loads parcels/buildings well beyond the visible viewport so boundaries feel less patchy.
-  boundaryLoadPadding: 0.65,
-  boundaryLoadDelay: 420,
-  parcelRecordCount: 2000,
-  buildingRecordCount: 2000,
-
-  linzParcelsEndpoint: "https://services.arcgis.com/xdsHIIxuCWByZiCB/arcgis/rest/services/LINZ_NZ_Primary_Parcels/FeatureServer/0/query",
-  linzBuildingsEndpoint: "https://services.arcgis.com/xdsHIIxuCWByZiCB/arcgis/rest/services/LINZ_NZ_Building_Outlines/FeatureServer/0/query",
-
-  // Optional: set to true and add a restricted browser key if you want Street View thumbnails.
-  enableGoogleStreetView: false,
-  googleStreetViewApiKey: "",
-  showExactAddress: false
+  streetView: {
+    enableGoogleStreetView: false,
+    googleStreetViewApiKey: "YOUR_RESTRICTED_KEY"
+  }
 };

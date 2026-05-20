@@ -1,68 +1,64 @@
-[
-  {
-    "area": "Te Aro",
-    "aliases": ["Te Aro", "Wellington Central"],
-    "lat": -41.2933,
-    "lng": 174.7775,
-    "dwellingType": "room / flat-share guide",
-    "medianRent": 330,
-    "lowerQuartile": 280,
-    "upperQuartile": 390,
-    "note": "Demo benchmark. Replace with official MBIE/Tenancy Services market-rent export or API data."
-  },
-  {
-    "area": "Kelburn",
-    "aliases": ["Kelburn", "North Kelburn"],
-    "lat": -41.2889,
-    "lng": 174.768,
-    "dwellingType": "room / flat-share guide",
-    "medianRent": 315,
-    "lowerQuartile": 260,
-    "upperQuartile": 370,
-    "note": "Demo benchmark. Replace with official MBIE/Tenancy Services market-rent export or API data."
-  },
-  {
-    "area": "Aro Valley",
-    "aliases": ["Aro Valley"],
-    "lat": -41.2938,
-    "lng": 174.7595,
-    "dwellingType": "room / flat-share guide",
-    "medianRent": 300,
-    "lowerQuartile": 250,
-    "upperQuartile": 360,
-    "note": "Demo benchmark. Replace with official MBIE/Tenancy Services market-rent export or API data."
-  },
-  {
-    "area": "Mount Cook",
-    "aliases": ["Mount Cook"],
-    "lat": -41.3016,
-    "lng": 174.773,
-    "dwellingType": "room / flat-share guide",
-    "medianRent": 310,
-    "lowerQuartile": 255,
-    "upperQuartile": 365,
-    "note": "Demo benchmark. Replace with official MBIE/Tenancy Services market-rent export or API data."
-  },
-  {
-    "area": "Newtown",
-    "aliases": ["Newtown"],
-    "lat": -41.3115,
-    "lng": 174.778,
-    "dwellingType": "room / flat-share guide",
-    "medianRent": 295,
-    "lowerQuartile": 245,
-    "upperQuartile": 350,
-    "note": "Demo benchmark. Replace with official MBIE/Tenancy Services market-rent export or API data."
-  },
-  {
-    "area": "Brooklyn",
-    "aliases": ["Brooklyn"],
-    "lat": -41.3055,
-    "lng": 174.7623,
-    "dwellingType": "room / flat-share guide",
-    "medianRent": 290,
-    "lowerQuartile": 240,
-    "upperQuartile": 345,
-    "note": "Demo benchmark. Replace with official MBIE/Tenancy Services market-rent export or API data."
-  }
-]
+{
+  "updated": "2026-05-20",
+  "note": "Demo data for the GitHub Pages prototype. Replace this with official MBIE or Tenancy Services market-rent data for a real launch.",
+  "areas": [
+    {
+      "name": "Te Aro",
+      "lat": -41.2946,
+      "lng": 174.7756,
+      "weeklyRent": "$620–$760 per week",
+      "description": "Demo inner-city guidance for a typical two-bedroom flat. Use this only as placeholder content until official market-rent data is connected."
+    },
+    {
+      "name": "Mount Cook",
+      "lat": -41.3013,
+      "lng": 174.7701,
+      "weeklyRent": "$590–$730 per week",
+      "description": "Demo guidance for flats around Mount Cook and nearby central Wellington streets."
+    },
+    {
+      "name": "Kelburn",
+      "lat": -41.2895,
+      "lng": 174.7665,
+      "weeklyRent": "$610–$780 per week",
+      "description": "Demo guidance for student-heavy hillside flats near the university area."
+    },
+    {
+      "name": "Newtown",
+      "lat": -41.3118,
+      "lng": 174.7796,
+      "weeklyRent": "$570–$720 per week",
+      "description": "Demo guidance for Newtown flats. Actual pricing needs an official rental dataset before public use."
+    },
+    {
+      "name": "Thorndon",
+      "lat": -41.2766,
+      "lng": 174.7772,
+      "weeklyRent": "$620–$790 per week",
+      "description": "Demo guidance for central-north Wellington flats and apartments."
+    }
+  ],
+  "demoFlats": [
+    {
+      "title": "Te Aro demo flat",
+      "lat": -41.2944,
+      "lng": 174.7769,
+      "score": 3.1,
+      "note": "Demo marker showing where tenant reviews could appear."
+    },
+    {
+      "title": "Kelburn demo flat",
+      "lat": -41.2891,
+      "lng": 174.7667,
+      "score": 4.0,
+      "note": "Demo marker with a stronger local score."
+    },
+    {
+      "title": "Mount Cook demo flat",
+      "lat": -41.3017,
+      "lng": 174.7714,
+      "score": 2.3,
+      "note": "Demo marker showing a warning-style score."
+    }
+  ]
+}

@@ -1,962 +1,996 @@
-const CONFIG = window.FLATWISE_CONFIG || {};
+(() => {
+  "use strict";
 
-const state = {
-  map: null,
-  parcelLayer: null,
-  buildingLayer: null,
-  selectedMarker: null,
-  selectedLayer: null,
-  hoveredLayer: null,
-  selectedFlat: null,
-  selectedBounds: null,
-  sampleReviews: [],
-  rentData: [],
-  localReviews: loadLocalReviews(),
-  demoMarkers: [],
-  loadTimer: null,
-  dataController: null,
-  lastLoadKey: "",
-  isLoadingBoundaries: false,
-  suppressLoadUntil: 0
-};
+  const config = window.FLATWISE_CONFIG || {};
 
-const ratingFields = [
-  { key: "rentValue", label: "Rent value", hint: "Is the price fair for the room, location, condition, and bills?" },
-  { key: "cleanliness", label: "Cleanliness", hint: "Kitchen, bathroom, bedroom, laundry, and shared spaces." },
-  { key: "warmthDryness", label: "Warmth & dryness", hint: "Warm, dry, ventilated, mould-free, and healthy." },
-  { key: "noise", label: "Noise level", hint: "Traffic, parties, insulation, and neighbours." },
-  { key: "safety", label: "Safety", hint: "Locks, lighting, entrances, street, and environment." },
-  { key: "flatmateVibe", label: "Flatmate vibe", hint: "Respectful, clear, relaxed, and honest." },
-  { key: "communication", label: "Communication", hint: "Rent, bond, bills, rules, and expectations." },
-  { key: "locationScore", label: "Location", hint: "Buses, shops, work, uni, parking, and essentials." },
-  { key: "pressureLevel", label: "Low pressure", hint: "Higher score means less rushing or weird urgency." },
-  { key: "liveability", label: "Overall liveability", hint: "Would you want to live here for 6–12 months?" }
-];
+  const reviewFields = [
+    { key: "rentValue", label: "Rent value", hint: "Did the price feel fair for the condition of the flat?" },
+    { key: "warmth", label: "Warmth", hint: "Did it stay warm and dry through winter?" },
+    { key: "noise", label: "Noise", hint: "How liveable was the sound level day to day?" },
+    { key: "safety", label: "Safety", hint: "Did the flat and surrounding area feel safe?" },
+    { key: "communication", label: "Communication", hint: "Was the landlord or property manager clear and respectful?" },
+    { key: "pressure", label: "Pressure", hint: "Were tenants pressured around inspections, rent, or repairs?" },
+    { key: "liveability", label: "Liveability", hint: "Overall, would you recommend living here?" }
+  ];
 
-const els = {};
+  const state = {
+    map: null,
+    tileLayer: null,
+    parcelLayer: null,
+    buildingLayer: null,
+    selectedBoundaryLayer: null,
+    selectedMarker: null,
+    activeParcelLayer: null,
+    selectedFeature: null,
+    rentData: null,
+    parcelCache: new Map(),
+    buildingCache: new Map(),
+    pendingBoundaryTimer: 0,
+    parcelAbortController: null,
+    buildingAbortController: null,
+    tileLoadingCount: 0,
+    elements: {}
+  };
 
-document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", init);
 
-async function init() {
-  cacheElements();
-  buildRatingInputs();
-  await loadData();
-  initMap();
-  addDemoMarkers();
-  bindUI();
-  renderEmptyBreakdown();
-}
+  function init() {
+    bindElements();
+    createRatingInputs();
 
-function cacheElements() {
-  els.map = document.getElementById("map");
-  els.mapStatus = document.getElementById("mapStatus");
-  els.searchForm = document.getElementById("searchForm");
-  els.searchInput = document.getElementById("searchInput");
-  els.clearSearch = document.getElementById("clearSearch");
-  els.wellingtonButton = document.getElementById("wellingtonButton");
-  els.heroWellingtonButton = document.getElementById("heroWellingtonButton");
-  els.focusButton = document.getElementById("focusButton");
-  els.reviewButton = document.getElementById("reviewButton");
-  els.inlineReviewButton = document.getElementById("inlineReviewButton");
-  els.topReviewButton = document.getElementById("topReviewButton");
-  els.detailsEmpty = document.getElementById("detailsEmpty");
-  els.detailsContent = document.getElementById("detailsContent");
-  els.photoFrame = document.getElementById("photoFrame");
-  els.selectedType = document.getElementById("selectedType");
-  els.selectedTitle = document.getElementById("selectedTitle");
-  els.selectedSuburb = document.getElementById("selectedSuburb");
-  els.selectedScore = document.getElementById("selectedScore");
-  els.rentBenchmark = document.getElementById("rentBenchmark");
-  els.rentDescription = document.getElementById("rentDescription");
-  els.boundarySource = document.getElementById("boundarySource");
-  els.boundaryDescription = document.getElementById("boundaryDescription");
-  els.ratingBreakdown = document.getElementById("ratingBreakdown");
-  els.reviewList = document.getElementById("reviewList");
-  els.reviewCount = document.getElementById("reviewCount");
-  els.reviewDialog = document.getElementById("reviewDialog");
-  els.reviewForm = document.getElementById("reviewForm");
-  els.ratingInputs = document.getElementById("ratingInputs");
-  els.reviewNote = document.getElementById("reviewNote");
-  els.reviewDialogSuburb = document.getElementById("reviewDialogSuburb");
-  els.closeDialog = document.getElementById("closeDialog");
-  els.cancelReview = document.getElementById("cancelReview");
-}
-
-async function loadData() {
-  const [reviewsResponse, rentResponse] = await Promise.all([
-    fetch("data/sample-reviews.json"),
-    fetch("data/rent-data.json")
-  ]);
-
-  state.sampleReviews = await reviewsResponse.json();
-  state.rentData = await rentResponse.json();
-}
-
-function initMap() {
-  const center = CONFIG.defaultMapCenter || [-41.29484, 174.77885];
-  const zoom = CONFIG.defaultZoom || 17;
-  const bounds = CONFIG.mapBounds || [[-47.8, 165.5], [-33.8, 179.5]];
-  const canvasRenderer = L.canvas({ padding: 0.5 });
-
-  state.map = L.map("map", {
-    zoomControl: false,
-    scrollWheelZoom: true,
-    doubleClickZoom: true,
-    touchZoom: true,
-    dragging: true,
-    inertia: true,
-    zoomAnimation: true,
-    fadeAnimation: true,
-    markerZoomAnimation: true,
-    preferCanvas: false,
-    renderer: canvasRenderer,
-    zoomSnap: 1,
-    zoomDelta: 1,
-    wheelPxPerZoomLevel: 96,
-    worldCopyJump: false,
-    maxBounds: bounds,
-    maxBoundsViscosity: 0.75,
-    minZoom: 5,
-    maxZoom: CONFIG.maxBoundaryZoom || 19
-  }).setView(center, zoom);
-
-  L.control.zoom({ position: "bottomright" }).addTo(state.map);
-
-  L.tileLayer(CONFIG.osmTileUrl || "https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    minZoom: 5,
-    maxZoom: CONFIG.maxBoundaryZoom || 19,
-    maxNativeZoom: CONFIG.mapMaxNativeZoom || 19,
-
-    // HUGE TILE MODE:
-    // 1024 with zoomOffset -2 makes every rendered tile cover a much larger map area.
-    // For sharper but less extreme loading, use 512 with zoomOffset -1 in config.js.
-    tileSize: CONFIG.mapTileSize || 1024,
-    zoomOffset: Number.isFinite(CONFIG.mapTileZoomOffset) ? CONFIG.mapTileZoomOffset : -2,
-
-    noWrap: true,
-    detectRetina: false,
-    updateWhenZooming: CONFIG.mapUpdateWhenZooming ?? false,
-    updateWhenIdle: CONFIG.mapUpdateWhenIdle ?? true,
-    updateInterval: CONFIG.mapUpdateInterval || 300,
-    keepBuffer: CONFIG.mapTileKeepBuffer ?? 6,
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  }).addTo(state.map);
-
-  state.map.createPane("propertyPane");
-  state.map.getPane("propertyPane").style.zIndex = 430;
-  state.map.getPane("propertyPane").style.pointerEvents = "auto";
-
-  state.map.createPane("buildingPane");
-  state.map.getPane("buildingPane").style.zIndex = 420;
-  state.map.getPane("buildingPane").style.pointerEvents = "none";
-
-  state.buildingLayer = L.layerGroup([], { pane: "buildingPane" }).addTo(state.map);
-  state.parcelLayer = L.layerGroup([], { pane: "propertyPane" }).addTo(state.map);
-
-  state.map.on("moveend zoomend", scheduleBoundaryLoad);
-  state.map.on("click", handleBackgroundClick);
-
-  state.map.whenReady(() => {
-    stableInvalidate();
-    setTimeout(stableInvalidate, 120);
-    setTimeout(scheduleBoundaryLoad, 260);
-    setStatus("Map ready. Zoom in to load official LINZ property boundaries.");
-  });
-
-  window.addEventListener("resize", debounce(() => {
-    stableInvalidate();
-    scheduleBoundaryLoad();
-  }, 180), { passive: true });
-}
-
-function stableInvalidate() {
-  if (!state.map) return;
-  state.map.invalidateSize({ animate: false, pan: false });
-}
-
-function addDemoMarkers() {
-  state.sampleReviews.forEach(flat => {
-    const average = calculateAverage(flat.ratings);
-    const marker = L.marker([flat.lat, flat.lng], {
-      icon: markerIcon(scoreClass(average), average.toFixed(1)),
-      riseOnHover: true
-    }).addTo(state.map);
-
-    marker.bindPopup(`
-      <div class="flat-popup">
-        <strong>${escapeHtml(flat.name)}</strong>
-        <span class="popup-meta">${escapeHtml(flat.suburb)} · demo review · ${average.toFixed(1)}/5</span>
-      </div>
-    `);
-
-    marker.on("click", () => {
-      selectFlat({
-        ...flat,
-        source: "demo",
-        osmKey: flat.osmKey || `demo/${flat.id}`
-      }, null, { focus: true });
-    });
-
-    state.demoMarkers.push({ marker, flat });
-  });
-}
-
-function bindUI() {
-  els.searchForm.addEventListener("submit", event => {
-    event.preventDefault();
-    const query = els.searchInput.value.trim();
-    if (query) searchLocation(query);
-  });
-
-  els.clearSearch.addEventListener("click", () => {
-    els.searchInput.value = "";
-    els.searchInput.focus();
-  });
-
-  els.wellingtonButton.addEventListener("click", jumpToWellington);
-  els.heroWellingtonButton.addEventListener("click", jumpToWellington);
-  els.focusButton.addEventListener("click", focusSelected);
-  els.reviewButton.addEventListener("click", openReviewDialog);
-  els.inlineReviewButton.addEventListener("click", openReviewDialog);
-  els.topReviewButton.addEventListener("click", openReviewDialog);
-  els.closeDialog.addEventListener("click", () => els.reviewDialog.close());
-  els.cancelReview.addEventListener("click", () => els.reviewDialog.close());
-  els.reviewForm.addEventListener("submit", saveReview);
-}
-
-function jumpToWellington() {
-  state.map.setView(CONFIG.defaultMapCenter || [-41.29484, 174.77885], CONFIG.defaultZoom || 17, { animate: true });
-  document.getElementById("mapArea").scrollIntoView({ behavior: "smooth", block: "start" });
-  setTimeout(stableInvalidate, 450);
-}
-
-async function searchLocation(query) {
-  setStatus(`Searching for “${query}”…`);
-
-  // Manual, user-triggered geocoding only. No autocomplete loop.
-  const url = new URL("https://nominatim.openstreetmap.org/search");
-  url.searchParams.set("format", "jsonv2");
-  url.searchParams.set("limit", "1");
-  url.searchParams.set("countrycodes", "nz");
-  url.searchParams.set("q", query);
-
-  try {
-    const response = await fetch(url.toString(), {
-      headers: { "Accept": "application/json" }
-    });
-
-    if (!response.ok) throw new Error(`Nominatim failed: ${response.status}`);
-
-    const results = await response.json();
-    if (!results.length) {
-      setStatus("No address found. Try a street, suburb, or a more complete address.");
+    if (!window.L) {
+      setStatus("Leaflet did not load. Check the CDN integrity hash or your network connection.");
       return;
     }
 
-    const result = results[0];
-    const lat = Number(result.lat);
-    const lng = Number(result.lon);
-    const zoom = Math.max(CONFIG.minBoundaryZoom || 16, 18);
-
-    state.map.setView([lat, lng], zoom, { animate: true });
-    setStatus(`Moved to ${result.display_name}. Zoom/hover to select the exact parcel.`);
-    setTimeout(scheduleBoundaryLoad, 650);
-  } catch (error) {
-    console.warn(error);
-    setStatus("Search is unavailable right now. You can still move the map manually.");
-  }
-}
-
-function scheduleBoundaryLoad() {
-  if (!state.map) return;
-  clearTimeout(state.loadTimer);
-  state.loadTimer = setTimeout(loadBoundariesForView, CONFIG.boundaryLoadDelay || 420);
-}
-
-async function loadBoundariesForView() {
-  if (!state.map || state.isLoadingBoundaries) return;
-  if (Date.now() < state.suppressLoadUntil) return;
-
-  const zoom = state.map.getZoom();
-  const minZoom = CONFIG.minBoundaryZoom || 16;
-
-  if (zoom < minZoom) {
-    state.parcelLayer.clearLayers();
-    state.buildingLayer.clearLayers();
-    state.lastLoadKey = "";
-    setStatus(`Zoom in closer to load LINZ property boundaries. Current zoom: ${zoom}.`);
-    return;
+    loadRentData();
+    createMap();
+    bindUIEvents();
+    renderEmptyDetails();
   }
 
-  // Load a much larger area than the exact visible viewport.
-  // This stops the boundary layer from feeling like it is only appearing in tiny patches.
-  const bounds = state.map.getBounds().pad(CONFIG.boundaryLoadPadding ?? 0.65);
-  const loadKey = buildBoundsKey(bounds, zoom);
+  function bindElements() {
+    const ids = [
+      "map", "mapStatus", "searchForm", "searchInput", "clearSearch", "wellingtonButton",
+      "heroWellingtonButton", "focusButton", "reviewButton", "topReviewButton", "inlineReviewButton",
+      "detailsEmpty", "detailsContent", "photoFrame", "selectedType", "selectedTitle", "selectedSuburb",
+      "selectedScore", "rentBenchmark", "rentDescription", "boundarySource", "boundaryDescription",
+      "reviewCount", "ratingBreakdown", "reviewList", "reviewDialog", "reviewForm", "reviewDialogSuburb",
+      "ratingInputs", "reviewNote", "cancelReview", "closeDialog"
+    ];
 
-  if (loadKey === state.lastLoadKey) return;
-  state.lastLoadKey = loadKey;
-
-  if (state.dataController) state.dataController.abort();
-  state.dataController = new AbortController();
-  state.isLoadingBoundaries = true;
-
-  setStatus("Loading official LINZ property parcels and building outlines…");
-
-  try {
-    const [parcels, buildings] = await Promise.all([
-      queryArcGis(
-        CONFIG.linzParcelsEndpoint,
-        bounds,
-        CONFIG.parcelRecordCount || 2000,
-        state.dataController.signal
-      ),
-      queryArcGis(
-        CONFIG.linzBuildingsEndpoint,
-        bounds,
-        CONFIG.buildingRecordCount || 2000,
-        state.dataController.signal
-      )
-    ]);
-
-    renderBuildingOutlines(buildings);
-    renderParcelBoundaries(parcels);
-
-    if (parcels.length) {
-      setStatus(`${parcels.length} LINZ property parcels loaded. Hover a parcel to highlight it, then click to select and focus.`);
-    } else {
-      setStatus("No LINZ property parcels returned in this view. Try zooming or moving slightly.");
-    }
-  } catch (error) {
-    if (error.name === "AbortError") return;
-    console.warn(error);
-    setStatus("Could not load LINZ boundaries right now. Check the internet connection, then move or zoom the map again.");
-  } finally {
-    state.isLoadingBoundaries = false;
+    ids.forEach((id) => {
+      state.elements[id] = document.getElementById(id);
+    });
   }
-}
 
-function buildBoundsKey(bounds, zoom) {
-  const precision = zoom >= 18 ? 5 : 4;
+  function createMap() {
+    const mapSettings = config.map || {};
+    const startCenter = mapSettings.startCenter || [-41.2924, 174.7787];
+    const startZoom = Number.isFinite(mapSettings.startZoom) ? mapSettings.startZoom : 17;
 
-  return [
-    Math.round(zoom),
-    bounds.getSouth().toFixed(precision),
-    bounds.getWest().toFixed(precision),
-    bounds.getNorth().toFixed(precision),
-    bounds.getEast().toFixed(precision)
-  ].join("|");
-}
+    state.map = L.map("map", {
+      center: startCenter,
+      zoom: startZoom,
+      minZoom: mapSettings.minZoom || 6,
+      maxZoom: mapSettings.maxZoom || 20,
+      zoomSnap: 1,
+      zoomDelta: 1,
+      wheelPxPerZoomLevel: 120,
+      worldCopyJump: true,
+      preferCanvas: false,
+      fadeAnimation: false,
+      zoomAnimation: true,
+      markerZoomAnimation: true,
+      inertia: true
+    });
 
-async function queryArcGis(endpoint, bounds, recordCount, signal) {
-  const params = new URLSearchParams({
-    f: "json",
-    where: "1=1",
-    geometry: `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`,
-    geometryType: "esriGeometryEnvelope",
-    inSR: "4326",
-    spatialRel: "esriSpatialRelIntersects",
-    outFields: "*",
-    returnGeometry: "true",
-    outSR: "4326",
-    geometryPrecision: "7",
-    resultRecordCount: String(recordCount)
-  });
+    state.map.createPane("buildingPane");
+    state.map.createPane("propertyPane");
+    state.map.createPane("selectedPane");
+    state.map.getPane("buildingPane").classList.add("leaflet-building-pane");
+    state.map.getPane("propertyPane").classList.add("leaflet-property-pane");
+    state.map.getPane("buildingPane").style.zIndex = 390;
+    state.map.getPane("propertyPane").style.zIndex = 430;
+    state.map.getPane("selectedPane").style.zIndex = 460;
 
-  const response = await fetch(`${endpoint}?${params.toString()}`, { signal });
-  if (!response.ok) throw new Error(`LINZ ArcGIS request failed: ${response.status}`);
+    state.tileLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors",
+      maxZoom: 20,
+      maxNativeZoom: 19,
+      tileSize: 256,
+      zoomOffset: 0,
+      detectRetina: false,
+      crossOrigin: true,
+      keepBuffer: 5,
+      updateWhenIdle: false,
+      updateWhenZooming: false
+    }).addTo(state.map);
 
-  const data = await response.json();
-  if (data.error) throw new Error(data.error.message || "LINZ ArcGIS error");
+    createTileLoadingBadge();
+    bindTileEvents();
 
-  return Array.isArray(data.features) ? data.features : [];
-}
-
-function renderBuildingOutlines(features) {
-  state.buildingLayer.clearLayers();
-
-  features.forEach(feature => {
-    const latLngRings = esriRingsToLatLngs(feature.geometry);
-    if (!latLngRings) return;
-
-    const layer = L.polygon(latLngRings, {
+    state.buildingLayer = L.geoJSON(null, {
       pane: "buildingPane",
       interactive: false,
-      ...buildingStyle()
-    });
+      style: buildingStyle
+    }).addTo(state.map);
 
-    layer.addTo(state.buildingLayer);
-  });
-}
-
-function renderParcelBoundaries(features) {
-  state.parcelLayer.clearLayers();
-  const selectedKey = state.selectedFlat?.osmKey;
-
-  features.forEach(feature => {
-    const latLngRings = esriRingsToLatLngs(feature.geometry);
-    if (!latLngRings) return;
-
-    const layer = L.polygon(latLngRings, {
+    state.parcelLayer = L.geoJSON(null, {
       pane: "propertyPane",
-      interactive: true,
-      bubblingMouseEvents: false,
-      ...parcelStyle("idle")
+      style: () => parcelStyle("normal"),
+      onEachFeature: onEachParcel
+    }).addTo(state.map);
+
+    state.selectedBoundaryLayer = L.geoJSON(null, {
+      pane: "selectedPane",
+      interactive: false,
+      style: () => parcelStyle("selected")
+    }).addTo(state.map);
+
+    addDemoMarkers();
+
+    state.map.whenReady(() => {
+      stableInvalidate();
+      setTimeout(stableInvalidate, 120);
+      setTimeout(scheduleBoundaryLoad, 260);
+      setStatus("Map ready. Zoom closer to load LINZ property boundaries.");
     });
 
-    const flat = normaliseParcelFeature(feature, layer);
-    layer.flatwiseData = flat;
+    state.map.on("movestart zoomstart", () => setTileLoading(true));
+    state.map.on("moveend zoomend", () => {
+      stableInvalidate();
+      scheduleBoundaryLoad();
+      window.setTimeout(() => setTileLoading(false), 480);
+    });
+  }
 
-    layer.on("mouseover", () => handleParcelHover(layer));
-    layer.on("mouseout", () => handleParcelOut(layer));
-    layer.on("click", event => {
-      if (event.originalEvent) L.DomEvent.stopPropagation(event.originalEvent);
-      selectFlat(flat, layer, { focus: true });
-      setStatus("Property selected. The red outline is the selected LINZ primary parcel boundary.");
+  function bindTileEvents() {
+    state.tileLayer.on("tileloadstart", () => {
+      state.tileLoadingCount += 1;
+      setTileLoading(true);
     });
 
-    layer.bindTooltip("Click to select this property parcel", {
-      sticky: true,
+    state.tileLayer.on("tileload tileabort", () => {
+      state.tileLoadingCount = Math.max(0, state.tileLoadingCount - 1);
+      if (state.tileLoadingCount === 0) {
+        setTimeout(() => setTileLoading(false), 220);
+      }
+    });
+
+    state.tileLayer.on("load", () => {
+      state.tileLoadingCount = 0;
+      setTimeout(() => setTileLoading(false), 220);
+    });
+
+    state.tileLayer.on("tileerror", (event) => {
+      state.tileLoadingCount = Math.max(0, state.tileLoadingCount - 1);
+      const tile = event.tile;
+      if (!tile) return;
+
+      const attempts = Number(tile.dataset.retryCount || "0");
+      if (attempts >= 2) {
+        setStatus("A map tile failed to load. Try a small pan or zoom to request it again.");
+        return;
+      }
+
+      tile.dataset.retryCount = String(attempts + 1);
+      const retrySrc = tile.src.split("?retry=")[0];
+      window.setTimeout(() => {
+        tile.src = `${retrySrc}?retry=${Date.now()}`;
+      }, 450 + attempts * 650);
+    });
+  }
+
+  function createTileLoadingBadge() {
+    const badge = document.createElement("div");
+    badge.id = "tileLoading";
+    badge.setAttribute("aria-hidden", "true");
+    badge.innerHTML = "<span></span> Loading map tiles";
+    state.elements.map.appendChild(badge);
+    state.elements.tileLoading = badge;
+  }
+
+  function setTileLoading(isLoading) {
+    const badge = state.elements.tileLoading;
+    if (!badge) return;
+    badge.classList.toggle("is-visible", Boolean(isLoading));
+  }
+
+  function stableInvalidate() {
+    if (!state.map) return;
+    state.map.invalidateSize({ animate: false, pan: false });
+  }
+
+  function bindUIEvents() {
+    state.elements.wellingtonButton?.addEventListener("click", jumpToWellington);
+    state.elements.heroWellingtonButton?.addEventListener("click", jumpToWellington);
+    state.elements.focusButton?.addEventListener("click", focusSelected);
+    state.elements.reviewButton?.addEventListener("click", openReviewDialog);
+    state.elements.topReviewButton?.addEventListener("click", openReviewDialog);
+    state.elements.inlineReviewButton?.addEventListener("click", openReviewDialog);
+    state.elements.cancelReview?.addEventListener("click", closeReviewDialog);
+    state.elements.closeDialog?.addEventListener("click", closeReviewDialog);
+    state.elements.clearSearch?.addEventListener("click", clearSearch);
+
+    state.elements.searchForm?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      runSearch();
+    });
+
+    state.elements.reviewForm?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      saveReview();
+    });
+  }
+
+  function jumpToWellington() {
+    if (!state.map) return;
+    scrollToMap();
+    state.map.flyTo([-41.2924, 174.7787], 17, { duration: 0.9 });
+  }
+
+  function scrollToMap() {
+    document.getElementById("mapArea")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function focusSelected() {
+    if (!state.selectedFeature) {
+      setStatus("Select a property boundary first, then the focus button will centre it.");
+      return;
+    }
+
+    const bounds = getFeatureBounds(state.selectedFeature);
+    if (bounds?.isValid()) {
+      state.map.fitBounds(bounds.pad(0.28), { maxZoom: 19, animate: true, duration: 0.7 });
+    }
+  }
+
+  async function runSearch() {
+    const query = state.elements.searchInput?.value.trim();
+    if (!query) {
+      setStatus("Type an address, street, or suburb first.");
+      return;
+    }
+
+    setStatus(`Searching for “${query}”…`);
+
+    try {
+      const url = new URL(config.urls.nominatim || "https://nominatim.openstreetmap.org/search");
+      url.searchParams.set("format", "jsonv2");
+      url.searchParams.set("limit", "1");
+      url.searchParams.set("countrycodes", "nz");
+      url.searchParams.set("q", query);
+
+      const results = await fetchJson(url.toString(), 9000);
+      if (!Array.isArray(results) || results.length === 0) {
+        setStatus("No matching NZ address found. Try a street and suburb together.");
+        return;
+      }
+
+      const place = results[0];
+      const lat = Number(place.lat);
+      const lon = Number(place.lon);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        setStatus("The search result did not include usable coordinates.");
+        return;
+      }
+
+      scrollToMap();
+      state.map.flyTo([lat, lon], Math.max(state.map.getZoom(), 18), { duration: 0.9 });
+      setStatus(`Moved to ${place.display_name || query}. Zoom in if parcel lines have not loaded yet.`);
+    } catch (error) {
+      console.warn("Flatwise search failed:", error);
+      setStatus("Search failed. You can still pan and zoom manually on the map.");
+    }
+  }
+
+  function clearSearch() {
+    if (state.elements.searchInput) {
+      state.elements.searchInput.value = "";
+      state.elements.searchInput.focus();
+    }
+  }
+
+  async function loadRentData() {
+    try {
+      state.rentData = await fetchJson(config.urls.rentData || "data/rent-data.json", 6000);
+    } catch (error) {
+      console.warn("Rent data could not be loaded:", error);
+      state.rentData = { areas: [], demoFlats: [] };
+    }
+  }
+
+  function addDemoMarkers() {
+    fetchJson(config.urls.rentData || "data/rent-data.json", 6000)
+      .then((data) => {
+        const flats = Array.isArray(data.demoFlats) ? data.demoFlats : [];
+        flats.forEach(addDemoMarker);
+      })
+      .catch(() => {
+        const fallback = [
+          { title: "Te Aro demo flat", lat: -41.2944, lng: 174.7769, score: 3.1, note: "Demo review marker only." },
+          { title: "Kelburn demo flat", lat: -41.2891, lng: 174.7667, score: 4.0, note: "Demo review marker only." }
+        ];
+        fallback.forEach(addDemoMarker);
+      });
+  }
+
+  function addDemoMarker(flat) {
+    if (!state.map || !Number.isFinite(flat.lat) || !Number.isFinite(flat.lng)) return;
+
+    const scoreClass = ratingClass(flat.score);
+    const marker = L.marker([flat.lat, flat.lng], {
+      title: flat.title || "Flatwise demo review",
+      icon: L.divIcon({
+        className: `demo-marker ${scoreClass}`,
+        html: `<span>${escapeHtml(String(Math.round((flat.score || 0) * 10) / 10))}</span>`,
+        iconSize: [44, 44],
+        iconAnchor: [22, 42],
+        popupAnchor: [0, -38]
+      })
+    }).addTo(state.map);
+
+    marker.bindPopup(`<div class="flat-popup"><strong>${escapeHtml(flat.title || "Flatwise demo review")}</strong><div class="popup-meta">${escapeHtml(flat.note || "Local demo marker.")}</div></div>`);
+  }
+
+  function scheduleBoundaryLoad() {
+    window.clearTimeout(state.pendingBoundaryTimer);
+    state.pendingBoundaryTimer = window.setTimeout(loadBoundariesForView, config.map?.boundaryDebounceMs || 320);
+  }
+
+  async function loadBoundariesForView() {
+    if (!state.map) return;
+
+    const zoom = state.map.getZoom();
+    const parcelZoom = config.map?.parcelLoadZoom || 16;
+    const buildingZoom = config.map?.buildingLoadZoom || 18;
+
+    if (zoom < parcelZoom) {
+      state.parcelLayer.clearLayers();
+      state.buildingLayer.clearLayers();
+      setStatus(`Zoom to level ${parcelZoom} or closer to load property boundaries.`);
+      return;
+    }
+
+    const bounds = state.map.getBounds().pad(0.08);
+    if (isQueryTooLarge(bounds)) {
+      state.parcelLayer.clearLayers();
+      state.buildingLayer.clearLayers();
+      setStatus("Move closer before loading property boundaries. This keeps the map fast and prevents huge LINZ requests.");
+      return;
+    }
+
+    await loadArcGisGeoJson({
+      layerName: "parcel",
+      url: config.urls.parcels,
+      bounds,
+      targetLayer: state.parcelLayer,
+      cache: state.parcelCache,
+      abortKey: "parcelAbortController",
+      outFields: "id,appellation,purpose,shape_area,parcel_intent,topology_type,survey_reference"
+    });
+
+    if (zoom >= buildingZoom) {
+      await loadArcGisGeoJson({
+        layerName: "building",
+        url: config.urls.buildings,
+        bounds,
+        targetLayer: state.buildingLayer,
+        cache: state.buildingCache,
+        abortKey: "buildingAbortController",
+        outFields: "id,name,use,shape_area,capture_source_id"
+      });
+    } else {
+      state.buildingLayer.clearLayers();
+    }
+  }
+
+  async function loadArcGisGeoJson(options) {
+    const { layerName, url, bounds, targetLayer, cache, abortKey, outFields } = options;
+    if (!url || !targetLayer) return;
+
+    const cacheKey = makeBoundsCacheKey(bounds, layerName);
+    if (cache.has(cacheKey)) {
+      applyGeoJsonToLayer(targetLayer, cache.get(cacheKey), layerName);
+      updateBoundaryStatus(layerName, cache.get(cacheKey));
+      return;
+    }
+
+    if (state[abortKey]) {
+      state[abortKey].abort();
+    }
+
+    const controller = new AbortController();
+    state[abortKey] = controller;
+
+    try {
+      const requestUrl = buildArcGisQueryUrl(url, bounds, outFields, layerName);
+      const response = await fetch(requestUrl, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`${layerName} request failed with ${response.status}`);
+      }
+
+      const geoJson = await response.json();
+      if (!geoJson || !Array.isArray(geoJson.features)) {
+        throw new Error(`${layerName} response was not GeoJSON`);
+      }
+
+      cache.set(cacheKey, geoJson);
+      trimCache(cache);
+      applyGeoJsonToLayer(targetLayer, geoJson, layerName);
+      updateBoundaryStatus(layerName, geoJson);
+    } catch (error) {
+      if (error.name === "AbortError") return;
+      console.warn(`Flatwise ${layerName} boundary load failed:`, error);
+      if (layerName === "parcel") {
+        setStatus("LINZ parcel boundaries could not load right now. The base map still works, so try a small pan or zoom.");
+      }
+    }
+  }
+
+  function buildArcGisQueryUrl(baseUrl, bounds, outFields, layerName) {
+    const geometry = {
+      xmin: bounds.getWest(),
+      ymin: bounds.getSouth(),
+      xmax: bounds.getEast(),
+      ymax: bounds.getNorth(),
+      spatialReference: { wkid: 4326 }
+    };
+
+    const url = new URL(baseUrl);
+    url.searchParams.set("f", "geojson");
+    url.searchParams.set("where", "1=1");
+    url.searchParams.set("outFields", outFields || "*");
+    url.searchParams.set("returnGeometry", "true");
+    url.searchParams.set("spatialRel", "esriSpatialRelIntersects");
+    url.searchParams.set("geometryType", "esriGeometryEnvelope");
+    url.searchParams.set("inSR", "4326");
+    url.searchParams.set("outSR", "4326");
+    url.searchParams.set("geometry", JSON.stringify(geometry));
+    url.searchParams.set("resultRecordCount", layerName === "building" ? "700" : "900");
+    url.searchParams.set("geometryPrecision", "6");
+    url.searchParams.set("maxAllowableOffset", layerName === "building" ? "0.0000025" : "0.000004");
+    return url.toString();
+  }
+
+  function applyGeoJsonToLayer(layer, geoJson) {
+    layer.clearLayers();
+    layer.addData(geoJson);
+  }
+
+  function updateBoundaryStatus(layerName, geoJson) {
+    if (layerName !== "parcel") return;
+
+    const count = geoJson.features.length;
+    if (count === 0) {
+      setStatus("No parcel polygons returned for this view. Try panning slightly or zooming closer.");
+      return;
+    }
+
+    setStatus(`${count} LINZ parcel boundaries loaded. Hover to highlight a property, then click to select it.`);
+  }
+
+  function isQueryTooLarge(bounds) {
+    const max = config.map?.maxQueryAreaDegrees || 0.018;
+    const width = Math.abs(bounds.getEast() - bounds.getWest());
+    const height = Math.abs(bounds.getNorth() - bounds.getSouth());
+    return width * height > max;
+  }
+
+  function makeBoundsCacheKey(bounds, layerName) {
+    const precision = layerName === "building" ? 4 : 3;
+    const parts = [
+      bounds.getWest(),
+      bounds.getSouth(),
+      bounds.getEast(),
+      bounds.getNorth()
+    ].map((value) => Number(value).toFixed(precision));
+    return `${layerName}:${state.map.getZoom()}:${parts.join(":")}`;
+  }
+
+  function trimCache(cache) {
+    const maxEntries = 18;
+    while (cache.size > maxEntries) {
+      const oldestKey = cache.keys().next().value;
+      cache.delete(oldestKey);
+    }
+  }
+
+  function onEachParcel(feature, layer) {
+    layer.on({
+      mouseover: () => handleParcelHover(layer),
+      mouseout: () => handleParcelOut(layer),
+      click: () => selectParcel(feature, layer)
+    });
+
+    const label = parcelTitle(feature);
+    layer.bindTooltip(label, {
       direction: "top",
+      sticky: true,
       className: "property-tooltip"
     });
-
-    layer.addTo(state.parcelLayer);
-
-    if (flat.osmKey === selectedKey) {
-      state.selectedLayer = layer;
-      layer.setStyle(parcelStyle("selected"));
-      layer.bringToFront();
-    }
-  });
-}
-
-function esriRingsToLatLngs(geometry) {
-  if (!geometry || !Array.isArray(geometry.rings) || !geometry.rings.length) return null;
-
-  const rings = geometry.rings
-    .filter(ring => Array.isArray(ring) && ring.length >= 3)
-    .map(ring => ring
-      .map(point => [Number(point[1]), Number(point[0])])
-      .filter(pair => Number.isFinite(pair[0]) && Number.isFinite(pair[1]))
-    );
-
-  return rings.length ? rings : null;
-}
-
-function normaliseParcelFeature(feature, layer) {
-  const attributes = feature.attributes || {};
-  const id = getFirst(attributes, ["OBJECTID", "objectid", "id", "parcel_id", "PARCEL_ID"]) || cryptoSafeId();
-  const center = layer.getBounds().getCenter();
-  const appellation = getFirst(attributes, ["appellation", "APPellation", "APP_DESCRIPTION", "parcel_intent", "purpose", "PURPOSE"]);
-  const locality = getFirst(attributes, ["suburb_locality", "SUBURB_LOCALITY", "locality", "LOCALITY"]);
-  const parcelArea = getFirst(attributes, ["shape_area", "Shape__Area", "area", "AREA"]);
-  const inferredRent = inferRentArea(center.lat, center.lng, locality);
-  const displayName = appellation && CONFIG.showExactAddress ? String(appellation) : "Selected property parcel";
-
-  return {
-    id: `linz-parcel/${id}`,
-    osmKey: `linz-parcel/${id}`,
-    source: "linz-parcel",
-    name: displayName,
-    suburb: inferredRent?.area || locality || "Wellington",
-    lat: center.lat,
-    lng: center.lng,
-    boundarySource: "LINZ NZ Primary Parcels",
-    boundaryDescription: parcelArea
-      ? `Official primary parcel polygon. Approx. area attribute: ${formatArea(parcelArea)}.`
-      : "Official primary parcel polygon from LINZ.",
-    ratings: {},
-    note: "No Flatwise review exists for this selected property yet.",
-    attributes
-  };
-}
-
-function handleParcelHover(layer) {
-  els.map.classList.add("is-hovering-property");
-
-  if (state.hoveredLayer && state.hoveredLayer !== state.selectedLayer) {
-    state.hoveredLayer.setStyle(parcelStyle("idle"));
   }
 
-  state.hoveredLayer = layer;
+  function handleParcelHover(layer) {
+    if (state.activeParcelLayer && state.activeParcelLayer !== layer) {
+      handleParcelOut(state.activeParcelLayer);
+    }
 
-  if (layer !== state.selectedLayer) {
+    state.activeParcelLayer = layer;
     layer.setStyle(parcelStyle("hover"));
     layer.bringToFront();
+    state.elements.map?.classList.add("is-hovering-property");
+    setStatus("Property boundary highlighted. Click it to select and focus on this parcel.");
   }
 
-  setStatus("Property boundary highlighted. Click it to select and focus on this parcel.");
-}
+  function handleParcelOut(layer) {
+    if (!layer) return;
+    if (state.selectedFeature && sameFeature(layer.feature, state.selectedFeature)) {
+      layer.setStyle(parcelStyle("muted"));
+    } else {
+      layer.setStyle(parcelStyle("normal"));
+    }
 
-function handleParcelOut(layer) {
-  els.map.classList.remove("is-hovering-property");
-  if (layer !== state.selectedLayer) layer.setStyle(parcelStyle("idle"));
-}
+    if (state.activeParcelLayer === layer) {
+      state.activeParcelLayer = null;
+    }
 
-function handleBackgroundClick(event) {
-  if (!event.latlng) return;
-  setStatus("No parcel was selected. Hover over a visible boundary, then click the highlighted property.");
-}
-
-function selectFlat(flat, layer = null, options = {}) {
-  if (state.selectedLayer && state.selectedLayer !== layer) {
-    state.selectedLayer.setStyle(parcelStyle("idle"));
+    state.elements.map?.classList.remove("is-hovering-property");
   }
 
-  state.selectedFlat = flat;
-  state.selectedLayer = layer || null;
-  state.selectedBounds = layer
-    ? layer.getBounds()
-    : L.latLngBounds([flat.lat, flat.lng], [flat.lat, flat.lng]);
+  function selectParcel(feature, layer) {
+    state.selectedFeature = feature;
+    state.selectedBoundaryLayer.clearLayers();
+    state.selectedBoundaryLayer.addData(feature);
 
-  if (layer) {
-    layer.setStyle(parcelStyle("selected"));
-    layer.bringToFront();
+    const bounds = layer.getBounds ? layer.getBounds() : getFeatureBounds(feature);
+    if (bounds?.isValid()) {
+      state.map.fitBounds(bounds.pad(0.36), { maxZoom: 19, animate: true, duration: 0.65 });
+      setSelectedMarker(bounds.getCenter());
+    }
+
+    layer.setStyle(parcelStyle("muted"));
+    renderSelectedDetails(feature);
+    document.querySelector(".details-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    setStatus("Property selected. Boundary is outlined in red and the details panel is ready.");
   }
 
-  placeSelectedMarker(flat);
-  renderDetails(flat);
-  els.detailsEmpty.classList.add("hidden");
-  els.detailsContent.classList.remove("hidden");
+  function setSelectedMarker(latLng) {
+    if (state.selectedMarker) {
+      state.selectedMarker.remove();
+    }
 
-  if (options.focus) focusSelected({ fromSelection: true });
-}
-
-function focusSelected(options = {}) {
-  if (!state.selectedFlat) {
-    setStatus("Select a property first, then Flatwise can focus on it.");
-    document.getElementById("mapArea").scrollIntoView({ behavior: "smooth", block: "start" });
-    return;
+    state.selectedMarker = L.marker(latLng, {
+      icon: L.divIcon({
+        className: "selected-marker",
+        html: "",
+        iconSize: [38, 38],
+        iconAnchor: [19, 34]
+      }),
+      interactive: false
+    }).addTo(state.map);
   }
 
-  if (state.selectedBounds && state.selectedBounds.isValid && state.selectedBounds.isValid()) {
-    state.suppressLoadUntil = Date.now() + 700;
-    const fitOptions = { padding: [96, 96], maxZoom: 19, animate: true };
-    state.map.fitBounds(state.selectedBounds.pad(0.85), fitOptions);
-  } else {
-    state.map.setView([state.selectedFlat.lat, state.selectedFlat.lng], 19, { animate: true });
+  function renderEmptyDetails() {
+    state.elements.detailsEmpty?.classList.remove("hidden");
+    state.elements.detailsContent?.classList.add("hidden");
   }
 
-  if (!options.fromSelection) {
-    document.getElementById("mapArea").scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  function renderSelectedDetails(feature) {
+    const title = parcelTitle(feature);
+    const id = propertyId(feature);
+    const centre = getFeatureCentre(feature);
+    const rent = findRentArea(centre);
+    const reviews = getReviews(id);
+    const average = calculateOverall(reviews);
 
-  setTimeout(() => {
-    stableInvalidate();
-    scheduleBoundaryLoad();
-  }, 760);
-}
+    state.elements.detailsEmpty?.classList.add("hidden");
+    state.elements.detailsContent?.classList.remove("hidden");
 
-function placeSelectedMarker(flat) {
-  if (state.selectedMarker) state.selectedMarker.remove();
+    setText("selectedType", "Selected property");
+    setText("selectedTitle", title);
+    setText("selectedSuburb", rent?.name || "Wellington area");
+    setText("boundarySource", "LINZ NZ Primary Parcels");
+    setText("boundaryDescription", boundaryDescription(feature));
+    setRatingPill(state.elements.selectedScore, average);
 
-  state.selectedMarker = L.marker([flat.lat, flat.lng], {
-    icon: selectedMarkerIcon(),
-    keyboard: false,
-    zIndexOffset: 900
-  }).addTo(state.map);
+    if (rent) {
+      setText("rentBenchmark", rent.weeklyRent || "Local guide");
+      setText("rentDescription", rent.description || "Area-based rent guidance loaded from the local demo data file.");
+    } else {
+      setText("rentBenchmark", "No local data");
+      setText("rentDescription", "No demo rent guide is currently available for this selected area.");
+    }
 
-  state.selectedMarker.bindPopup(`
-    <div class="flat-popup">
-      <strong>${escapeHtml(flat.name || "Selected property")}</strong>
-      <span class="popup-meta">Selected for review</span>
-    </div>
-  `, { autoPan: false });
-}
+    renderPhoto(centre, title);
+    renderRatingBreakdown(reviews);
+    renderReviewList(reviews);
 
-function renderDetails(flat) {
-  const reviews = getReviewsForFlat(flat);
-  const combinedRatings = reviews.length
-    ? averageRatings(reviews.map(review => review.ratings))
-    : flat.ratings || {};
-  const averageScore = Object.keys(combinedRatings).length ? calculateAverage(combinedRatings) : null;
-  const rent = inferRentArea(flat.lat, flat.lng, flat.suburb);
-
-  els.selectedType.textContent = labelForSource(flat.source);
-  els.selectedTitle.textContent = flat.name || "Selected property";
-  els.selectedSuburb.textContent = rent?.area || flat.suburb || "Wellington";
-  els.selectedScore.textContent = averageScore ? `${averageScore.toFixed(1)} / 5` : "No rating";
-  els.selectedScore.className = `rating-pill ${averageScore ? scoreClass(averageScore) : ""}`;
-  els.reviewCount.textContent = String(reviews.length);
-  els.boundarySource.textContent = flat.boundarySource || "Map location";
-  els.boundaryDescription.textContent = flat.boundaryDescription || "Selected map position. Official boundaries load when available.";
-
-  renderPhoto(flat);
-  renderRent(rent);
-  renderBreakdown(combinedRatings);
-  renderReviews(reviews, flat);
-}
-
-function labelForSource(source) {
-  if (source === "linz-parcel") return "LINZ property parcel";
-  if (source === "demo") return "Demo flat review";
-  return "Selected location";
-}
-
-function renderPhoto(flat) {
-  if (CONFIG.enableGoogleStreetView && CONFIG.googleStreetViewApiKey) {
-    const url = `https://maps.googleapis.com/maps/api/streetview?size=900x520&location=${flat.lat},${flat.lng}&fov=80&pitch=0&key=${encodeURIComponent(CONFIG.googleStreetViewApiKey)}`;
-    els.photoFrame.innerHTML = `<img src="${escapeAttribute(url)}" alt="Street view preview for selected property">`;
-    return;
-  }
-
-  els.photoFrame.innerHTML = `
-    <div class="photo-placeholder">
-      <div>
-        <span>⌂</span>
-        <strong>${escapeHtml(flat.name || "Selected property")}</strong>
-        <small>Image layer is ready. Add a restricted Street View API key in <code>js/config.js</code>, or swap this for moderated tenant-uploaded images in a real version.</small>
-      </div>
-    </div>
-  `;
-}
-
-function renderRent(rent) {
-  if (!rent) {
-    els.rentBenchmark.textContent = "No local data";
-    els.rentDescription.textContent = "No rent benchmark was found for this selected area. Add one in data/rent-data.json.";
-    return;
-  }
-
-  els.rentBenchmark.textContent = `$${rent.medianRent}/week`;
-  els.rentDescription.innerHTML = `
-    <strong>${escapeHtml(rent.area)}</strong> ${escapeHtml(rent.dwellingType)}: lower quartile $${rent.lowerQuartile}, median $${rent.medianRent}, upper quartile $${rent.upperQuartile} per week.
-    ${escapeHtml(rent.note || "")}
-  `;
-}
-
-function renderBreakdown(ratings) {
-  if (!ratings || Object.keys(ratings).length === 0) {
-    renderEmptyBreakdown();
-    return;
-  }
-
-  els.ratingBreakdown.innerHTML = ratingFields.map(field => {
-    const value = Number(ratings[field.key] || 0);
-    const width = Math.max(0, Math.min(100, (value / 5) * 100));
-
-    return `
-      <div class="breakdown-row">
-        <div class="breakdown-label">
-          <span>${escapeHtml(field.label)}</span>
-          <strong>${value.toFixed(1)}/5</strong>
-        </div>
-        <div class="meter"><span style="--width: ${width}%"></span></div>
-      </div>
-    `;
-  }).join("");
-}
-
-function renderEmptyBreakdown() {
-  if (!els.ratingBreakdown) return;
-
-  els.ratingBreakdown.innerHTML = `
-    <div class="info-card">
-      <strong>No rating breakdown yet.</strong>
-      <p>Once someone reviews this property, the category scores will appear here.</p>
-    </div>
-  `;
-}
-
-function renderReviews(reviews, flat) {
-  if (!reviews.length) {
-    els.reviewList.innerHTML = `
-      <article class="review-card">
-        <header>
-          <strong>Be the first reviewer—</strong>
-          <span>0 reviews</span>
-        </header>
-        <p>${escapeHtml(flat.note || "No tenant reviews have been added for this property yet.")}</p>
-      </article>
-    `;
-    return;
-  }
-
-  els.reviewList.innerHTML = reviews.map(review => {
-    const avg = calculateAverage(review.ratings);
-    const date = review.createdAt ? new Date(review.createdAt) : new Date();
-
-    return `
-      <article class="review-card">
-        <header>
-          <strong>${avg.toFixed(1)} / 5 tenant score</strong>
-          <span>${date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span>
-        </header>
-        <p>${escapeHtml(review.note || "No written note provided.")}</p>
-      </article>
-    `;
-  }).join("");
-}
-
-function getReviewsForFlat(flat) {
-  const key = flat.osmKey || flat.id;
-
-  const demoMatches = state.sampleReviews
-    .filter(item => (item.osmKey || `demo/${item.id}`) === key || item.id === flat.id)
-    .map(item => ({
-      ratings: item.ratings,
-      note: item.note,
-      createdAt: item.createdAt,
-      source: "demo"
-    }));
-
-  const localMatches = state.localReviews.filter(item => item.osmKey === key);
-
-  return [...demoMatches, ...localMatches];
-}
-
-function buildRatingInputs() {
-  els.ratingInputs.innerHTML = ratingFields.map(field => `
-    <div class="rating-field">
-      <label for="${escapeAttribute(field.key)}">
-        <span>${escapeHtml(field.label)}</span>
-        <output id="${escapeAttribute(field.key)}Value">3</output>
-      </label>
-      <input id="${escapeAttribute(field.key)}" type="range" min="1" max="5" value="3" step="1">
-      <small>${escapeHtml(field.hint)}</small>
-    </div>
-  `).join("");
-
-  ratingFields.forEach(field => {
-    const input = document.getElementById(field.key);
-    const output = document.getElementById(`${field.key}Value`);
-
-    input.addEventListener("input", () => {
-      output.value = input.value;
-      output.textContent = input.value;
-    });
-  });
-}
-
-function openReviewDialog() {
-  if (!state.selectedFlat) {
-    setStatus("Select a property first, then write a review.");
-    document.getElementById("mapArea").scrollIntoView({ behavior: "smooth", block: "start" });
-    return;
-  }
-
-  els.reviewDialogSuburb.textContent = `${state.selectedFlat.name} · ${state.selectedFlat.suburb || "Wellington"}`;
-  els.reviewNote.value = "";
-
-  ratingFields.forEach(field => {
-    const input = document.getElementById(field.key);
-    const output = document.getElementById(`${field.key}Value`);
-    input.value = "3";
-    output.textContent = "3";
-  });
-
-  if (typeof els.reviewDialog.showModal === "function") {
-    els.reviewDialog.showModal();
-  } else {
-    alert("Your browser does not support dialog windows. Please use a modern browser for this prototype.");
-  }
-}
-
-function saveReview(event) {
-  event.preventDefault();
-  if (!state.selectedFlat) return;
-
-  const ratings = {};
-  ratingFields.forEach(field => {
-    ratings[field.key] = Number(document.getElementById(field.key).value);
-  });
-
-  const review = {
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-    osmKey: state.selectedFlat.osmKey || state.selectedFlat.id,
-    flatName: state.selectedFlat.name,
-    suburb: state.selectedFlat.suburb,
-    lat: state.selectedFlat.lat,
-    lng: state.selectedFlat.lng,
-    ratings,
-    note: els.reviewNote.value.trim(),
-    createdAt: new Date().toISOString()
-  };
-
-  state.localReviews.unshift(review);
-  localStorage.setItem("flatwise_reviews_v6", JSON.stringify(state.localReviews));
-  els.reviewDialog.close();
-  renderDetails(state.selectedFlat);
-  setStatus("Review saved locally in this browser. For a live build, connect this form to Supabase or Firebase.");
-}
-
-function inferRentArea(lat, lng, possibleName = "") {
-  if (!state.rentData.length) return null;
-
-  const normalisedName = String(possibleName || "").trim().toLowerCase();
-  const directMatch = state.rentData.find(item => {
-    const aliases = [item.area, ...(item.aliases || [])].map(value => String(value).toLowerCase());
-    return aliases.some(alias => alias && normalisedName.includes(alias));
-  });
-
-  if (directMatch) return directMatch;
-
-  return [...state.rentData]
-    .filter(item => Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng)))
-    .sort((a, b) => distanceMeters(lat, lng, a.lat, a.lng) - distanceMeters(lat, lng, b.lat, b.lng))[0] || null;
-}
-
-function setStatus(message) {
-  if (els.mapStatus) els.mapStatus.textContent = message;
-}
-
-function parcelStyle(mode = "idle") {
-  if (mode === "selected") {
-    return {
-      color: "#b23a2f",
-      weight: 4,
-      opacity: 1,
-      fillColor: "#b23a2f",
-      fillOpacity: 0.22
-    };
-  }
-
-  if (mode === "hover") {
-    return {
-      color: "#101312",
-      weight: 3.2,
-      opacity: 0.98,
-      fillColor: "#1f7a4f",
-      fillOpacity: 0.2
-    };
-  }
-
-  return {
-    color: "#101312",
-    weight: 1.15,
-    opacity: 0.46,
-    fillColor: "#fffaf0",
-    fillOpacity: 0.02
-  };
-}
-
-function buildingStyle() {
-  return {
-    color: "#1f7a4f",
-    weight: 1,
-    opacity: 0.38,
-    fillColor: "#1f7a4f",
-    fillOpacity: 0.08
-  };
-}
-
-function markerIcon(className, label) {
-  return L.divIcon({
-    className: "",
-    html: `
-      <div class="demo-marker ${escapeAttribute(className)}">
-        <span>${escapeHtml(label)}</span>
-      </div>
-    `,
-    iconSize: [44, 44],
-    iconAnchor: [22, 38],
-    popupAnchor: [0, -34]
-  });
-}
-
-function selectedMarkerIcon() {
-  return L.divIcon({
-    className: "",
-    html: `<div class="selected-marker"></div>`,
-    iconSize: [38, 38],
-    iconAnchor: [19, 31],
-    popupAnchor: [0, -28]
-  });
-}
-
-function loadLocalReviews() {
-  try {
-    return JSON.parse(localStorage.getItem("flatwise_reviews_v6") || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function averageRatings(ratingObjects) {
-  const totals = {};
-  const counts = {};
-
-  ratingObjects.forEach(ratings => {
-    ratingFields.forEach(field => {
-      const value = Number(ratings?.[field.key]);
-      if (!Number.isFinite(value) || value <= 0) return;
-
-      totals[field.key] = (totals[field.key] || 0) + value;
-      counts[field.key] = (counts[field.key] || 0) + 1;
-    });
-  });
-
-  return Object.fromEntries(Object.keys(totals).map(key => [key, totals[key] / counts[key]]));
-}
-
-function calculateAverage(ratings) {
-  const values = ratingFields
-    .map(field => Number(ratings?.[field.key]))
-    .filter(value => Number.isFinite(value) && value > 0);
-
-  if (!values.length) return 0;
-
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function scoreClass(score) {
-  if (score >= 4) return "good";
-  if (score >= 3) return "warning";
-  return "bad";
-}
-
-function distanceMeters(lat1, lng1, lat2, lng2) {
-  const radius = 6371000;
-  const toRad = value => Number(value) * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-
-  const a = Math.sin(dLat / 2) ** 2
-    + Math.cos(toRad(lat1))
-    * Math.cos(toRad(lat2))
-    * Math.sin(dLng / 2) ** 2;
-
-  return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function getFirst(object, keys) {
-  for (const key of keys) {
-    if (object && object[key] !== undefined && object[key] !== null && String(object[key]).trim() !== "") {
-      return object[key];
+    if (state.elements.reviewDialogSuburb) {
+      state.elements.reviewDialogSuburb.textContent = title;
     }
   }
 
-  return null;
-}
+  function renderPhoto(centre, title) {
+    if (!state.elements.photoFrame) return;
 
-function formatArea(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return String(value);
-  return `${Math.round(number).toLocaleString()} m²`;
-}
+    const streetView = config.streetView || {};
+    const canUseStreetView = Boolean(streetView.enableGoogleStreetView && streetView.googleStreetViewApiKey && streetView.googleStreetViewApiKey !== "YOUR_RESTRICTED_KEY" && centre);
 
-function cryptoSafeId() {
-  return crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random());
-}
+    if (canUseStreetView) {
+      const url = new URL("https://maps.googleapis.com/maps/api/streetview");
+      url.searchParams.set("size", "900x620");
+      url.searchParams.set("location", `${centre.lat},${centre.lng}`);
+      url.searchParams.set("fov", "82");
+      url.searchParams.set("heading", "0");
+      url.searchParams.set("pitch", "0");
+      url.searchParams.set("key", streetView.googleStreetViewApiKey);
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
+      state.elements.photoFrame.innerHTML = "";
+      const img = document.createElement("img");
+      img.src = url.toString();
+      img.alt = `Street view near ${title}`;
+      state.elements.photoFrame.appendChild(img);
+      return;
+    }
 
-function escapeAttribute(value) {
-  return escapeHtml(value).replace(/`/g, "&#096;");
-}
+    state.elements.photoFrame.innerHTML = `
+      <div class="photo-placeholder">
+        <div>
+          <span>⌂</span>
+          <strong>${escapeHtml(title)}</strong>
+          <small>Street imagery is disabled in this prototype. Add a restricted Google Street View Static API key in js/config.js if you want images here.</small>
+        </div>
+      </div>
+    `;
+  }
 
-function debounce(callback, wait) {
-  let timeout;
+  function renderRatingBreakdown(reviews) {
+    if (!state.elements.ratingBreakdown) return;
+    state.elements.ratingBreakdown.innerHTML = "";
 
-  return (...args) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => callback(...args), wait);
-  };
-}
+    reviewFields.forEach((field) => {
+      const value = calculateFieldAverage(reviews, field.key);
+      const display = Number.isFinite(value) ? value.toFixed(1) : "—";
+      const width = Number.isFinite(value) ? `${Math.max(4, (value / 5) * 100)}%` : "0%";
+
+      const row = document.createElement("div");
+      row.className = "breakdown-row";
+      row.innerHTML = `
+        <div class="breakdown-label"><span>${escapeHtml(field.label)}</span><span>${display}</span></div>
+        <div class="meter"><span style="--width:${width}"></span></div>
+      `;
+      state.elements.ratingBreakdown.appendChild(row);
+    });
+  }
+
+  function renderReviewList(reviews) {
+    if (!state.elements.reviewList) return;
+    state.elements.reviewList.innerHTML = "";
+    setText("reviewCount", String(reviews.length));
+
+    if (reviews.length === 0) {
+      const empty = document.createElement("article");
+      empty.className = "review-card";
+      empty.innerHTML = `<p>No tenant notes saved yet. Add a local review to test the prototype flow.</p>`;
+      state.elements.reviewList.appendChild(empty);
+      return;
+    }
+
+    reviews.slice().reverse().forEach((review) => {
+      const card = document.createElement("article");
+      card.className = "review-card";
+      const score = calculateReviewScore(review);
+      const date = review.createdAt ? new Date(review.createdAt).toLocaleDateString() : "Saved locally";
+      card.innerHTML = `
+        <header><strong>${Number.isFinite(score) ? score.toFixed(1) : "—"} / 5</strong><span>${escapeHtml(date)}</span></header>
+        <p>${escapeHtml(review.note || "No note added.")}</p>
+      `;
+      state.elements.reviewList.appendChild(card);
+    });
+  }
+
+  function createRatingInputs() {
+    if (!state.elements.ratingInputs) return;
+    state.elements.ratingInputs.innerHTML = "";
+
+    reviewFields.forEach((field) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "rating-field";
+      wrapper.innerHTML = `
+        <label for="rating-${field.key}">
+          <span>${escapeHtml(field.label)}</span>
+          <output id="output-${field.key}">3</output>
+        </label>
+        <input id="rating-${field.key}" name="${field.key}" type="range" min="1" max="5" step="1" value="3" />
+        <small>${escapeHtml(field.hint)}</small>
+      `;
+
+      const input = wrapper.querySelector("input");
+      const output = wrapper.querySelector("output");
+      input.addEventListener("input", () => {
+        output.textContent = input.value;
+      });
+
+      state.elements.ratingInputs.appendChild(wrapper);
+    });
+  }
+
+  function openReviewDialog() {
+    if (!state.selectedFeature) {
+      setStatus("Select a property boundary before adding a review.");
+      scrollToMap();
+      return;
+    }
+
+    if (!state.elements.reviewDialog) return;
+
+    if (typeof state.elements.reviewDialog.showModal === "function") {
+      state.elements.reviewDialog.showModal();
+    } else {
+      state.elements.reviewDialog.setAttribute("open", "open");
+    }
+  }
+
+  function closeReviewDialog() {
+    if (!state.elements.reviewDialog) return;
+
+    if (typeof state.elements.reviewDialog.close === "function") {
+      state.elements.reviewDialog.close();
+    } else {
+      state.elements.reviewDialog.removeAttribute("open");
+    }
+  }
+
+  function saveReview() {
+    if (!state.selectedFeature) return;
+
+    const review = {
+      createdAt: new Date().toISOString(),
+      note: state.elements.reviewNote?.value.trim() || "",
+      ratings: {}
+    };
+
+    reviewFields.forEach((field) => {
+      const input = document.getElementById(`rating-${field.key}`);
+      review.ratings[field.key] = Number(input?.value || 3);
+    });
+
+    const id = propertyId(state.selectedFeature);
+    const reviews = getReviews(id);
+    reviews.push(review);
+    localStorage.setItem(storageKey(id), JSON.stringify(reviews));
+
+    state.elements.reviewForm?.reset();
+    reviewFields.forEach((field) => setText(`output-${field.key}`, "3"));
+    closeReviewDialog();
+    renderSelectedDetails(state.selectedFeature);
+    setStatus("Review saved locally in this browser.");
+  }
+
+  function getReviews(id) {
+    try {
+      const raw = localStorage.getItem(storageKey(id));
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.warn("Could not read Flatwise reviews:", error);
+      return [];
+    }
+  }
+
+  function storageKey(id) {
+    return `${config.reviews?.storagePrefix || "flatwise_reviews_v2:"}${id}`;
+  }
+
+  function parcelStyle(type) {
+    if (type === "hover") {
+      return {
+        color: "#145c3a",
+        weight: 3,
+        opacity: 1,
+        fillColor: "#1f7a4f",
+        fillOpacity: 0.2
+      };
+    }
+
+    if (type === "selected") {
+      return {
+        color: "#b23a2f",
+        weight: 4,
+        opacity: 1,
+        fillColor: "#b23a2f",
+        fillOpacity: 0.2
+      };
+    }
+
+    if (type === "muted") {
+      return {
+        color: "#5e6965",
+        weight: 1.25,
+        opacity: 0.55,
+        fillColor: "#fffaf0",
+        fillOpacity: 0.04
+      };
+    }
+
+    return {
+      color: "#101312",
+      weight: 1.2,
+      opacity: 0.56,
+      fillColor: "#fffaf0",
+      fillOpacity: 0.08
+    };
+  }
+
+  function buildingStyle() {
+    return {
+      color: "#1f7a4f",
+      weight: 1,
+      opacity: 0.42,
+      fillColor: "#1f7a4f",
+      fillOpacity: 0.08
+    };
+  }
+
+  function parcelTitle(feature) {
+    const p = feature?.properties || {};
+    return firstMeaningful([
+      p.appellation,
+      p.address,
+      p.name,
+      p.parcel_intent,
+      p.purpose,
+      p.survey_reference ? `Parcel ${p.survey_reference}` : "",
+      p.id ? `LINZ Parcel ${p.id}` : "Selected property"
+    ]);
+  }
+
+  function propertyId(feature) {
+    const p = feature?.properties || {};
+    return String(firstMeaningful([p.id, p.objectid, p.OBJECTID, p.globalid, p.GLOBALID, parcelTitle(feature)]));
+  }
+
+  function boundaryDescription(feature) {
+    const p = feature?.properties || {};
+    const purpose = firstMeaningful([p.purpose, p.parcel_intent, p.topology_type]);
+    const area = Number(p.shape_area || p.Shape__Area || p.SHAPE__Area);
+
+    if (Number.isFinite(area) && area > 0) {
+      return `${purpose || "Primary parcel"}. Approximate parcel area: ${Math.round(area).toLocaleString()} square metres.`;
+    }
+
+    return `${purpose || "Primary parcel"}. Geometry loaded from the LINZ ArcGIS FeatureServer.`;
+  }
+
+  function getFeatureBounds(feature) {
+    const layer = L.geoJSON(feature);
+    const bounds = layer.getBounds();
+    layer.remove();
+    return bounds;
+  }
+
+  function getFeatureCentre(feature) {
+    const bounds = getFeatureBounds(feature);
+    if (!bounds?.isValid()) return null;
+    return bounds.getCenter();
+  }
+
+  function sameFeature(a, b) {
+    return propertyId(a) === propertyId(b);
+  }
+
+  function findRentArea(centre) {
+    const areas = Array.isArray(state.rentData?.areas) ? state.rentData.areas : [];
+    if (!centre || areas.length === 0) return null;
+
+    let best = null;
+    let bestDistance = Infinity;
+
+    areas.forEach((area) => {
+      if (!Number.isFinite(area.lat) || !Number.isFinite(area.lng)) return;
+      const distance = distanceMeters(centre.lat, centre.lng, area.lat, area.lng);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = area;
+      }
+    });
+
+    return bestDistance <= 4500 ? best : null;
+  }
+
+  function distanceMeters(lat1, lon1, lat2, lon2) {
+    const radius = 6371000;
+    const toRad = (degrees) => (degrees * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function calculateOverall(reviews) {
+    if (!reviews.length) return NaN;
+    const scores = reviews.map(calculateReviewScore).filter(Number.isFinite);
+    if (!scores.length) return NaN;
+    return scores.reduce((sum, score) => sum + score, 0) / scores.length;
+  }
+
+  function calculateReviewScore(review) {
+    const values = reviewFields
+      .map((field) => Number(review.ratings?.[field.key]))
+      .filter(Number.isFinite);
+
+    if (!values.length) return NaN;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }
+
+  function calculateFieldAverage(reviews, key) {
+    const values = reviews.map((review) => Number(review.ratings?.[key])).filter(Number.isFinite);
+    if (!values.length) return NaN;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }
+
+  function setRatingPill(element, value) {
+    if (!element) return;
+    element.classList.remove("good", "warning", "bad");
+
+    if (!Number.isFinite(value)) {
+      element.textContent = "No rating";
+      return;
+    }
+
+    element.textContent = `${value.toFixed(1)} / 5`;
+    element.classList.add(ratingClass(value));
+  }
+
+  function ratingClass(value) {
+    if (!Number.isFinite(value)) return "warning";
+    if (value >= 3.8) return "good";
+    if (value <= 2.4) return "bad";
+    return "warning";
+  }
+
+  function setStatus(message) {
+    if (state.elements.mapStatus) {
+      state.elements.mapStatus.textContent = message;
+    }
+  }
+
+  function setText(id, value) {
+    const element = document.getElementById(id) || state.elements[id];
+    if (element) {
+      element.textContent = value;
+    }
+  }
+
+  async function fetchJson(url, timeoutMs) {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs || 8000);
+
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`Request failed with ${response.status}`);
+      }
+      return await response.json();
+    } finally {
+      window.clearTimeout(timer);
+    }
+  }
+
+  function firstMeaningful(values) {
+    const found = values.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+    return found === undefined ? "" : String(found).trim();
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+})();
