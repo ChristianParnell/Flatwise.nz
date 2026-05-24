@@ -35,4 +35,8 @@ Overall liveability
 Would you want to live there for 6–12 months? 
 AND RATINGS!       ★ ★ ★ ★ ☆ ☆
 	
-May 7, 10:15 AM GMT+12
+May 7
+
+May 24th
+Setup API for google static street API, Using a quata of 100 it is free to get pararamic views of the street, below 100. so please be carful
+
