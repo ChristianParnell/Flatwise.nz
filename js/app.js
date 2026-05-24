@@ -40,6 +40,7 @@
     showPropertyLines: true,
     showBuildings: true,
     highlightSelectedBoundary: true,
+    streetViewRequestId: 0,
     elements: {}
   };
 
@@ -1004,41 +1005,147 @@
     return description;
   }
 
-  function renderPhoto(centre, title) {
+  async function renderPhoto(centre, title) {
     if (!state.elements.photoFrame) return;
 
-    const streetView = config.streetView || {};
-    const canUseStreetView = Boolean(
-      streetView.enableGoogleStreetView &&
-      streetView.googleStreetViewApiKey &&
-      streetView.googleStreetViewApiKey !== "YOUR_RESTRICTED_KEY" &&
-      centre
-    );
+    const requestId = ++state.streetViewRequestId;
+    const streetViewSettings = getStreetViewSettings();
 
-    if (canUseStreetView) {
-      const url = new URL("https://maps.googleapis.com/maps/api/streetview");
-      url.searchParams.set("size", "900x620");
-      url.searchParams.set("location", `${centre.lat},${centre.lng}`);
-      url.searchParams.set("fov", "82");
-      url.searchParams.set("heading", "0");
-      url.searchParams.set("pitch", "0");
-      url.searchParams.set("key", streetView.googleStreetViewApiKey);
-
-      state.elements.photoFrame.innerHTML = "";
-      const img = document.createElement("img");
-      img.src = url.toString();
-      img.alt = `Street view near ${title}`;
-      state.elements.photoFrame.appendChild(img);
+    if (!centre) {
+      renderStreetViewPlaceholder(title, "Select a property first so Flatwise can look for nearby Street View imagery.");
       return;
     }
 
+    if (!streetViewSettings.enabled) {
+      renderStreetViewPlaceholder(title, "Street imagery is disabled. Enable Street View and add a restricted Google key in js/config.js.");
+      return;
+    }
+
+    if (!streetViewSettings.key || streetViewSettings.key === "YOUR_RESTRICTED_KEY" || streetViewSettings.key.includes("PASTE_")) {
+      renderStreetViewPlaceholder(title, "Street imagery needs a restricted Google Street View Static API key in js/config.js.");
+      return;
+    }
+
+    renderStreetViewLoading(title);
+
+    try {
+      const metadata = await getStreetViewMetadata(centre.lat, centre.lng);
+      if (requestId !== state.streetViewRequestId) return;
+
+      if (!metadata || metadata.status !== "OK" || !metadata.pano_id) {
+        const message = metadata?.status
+          ? `Google Street View returned ${metadata.status} for this selected property.`
+          : "Google Street View did not return imagery for this selected property.";
+        renderStreetViewPlaceholder(title, message);
+        return;
+      }
+
+      const panoLocation = metadata.location || {};
+      const heading = Number.isFinite(panoLocation.lat) && Number.isFinite(panoLocation.lng)
+        ? calculateHeading(panoLocation.lat, panoLocation.lng, centre.lat, centre.lng)
+        : streetViewSettings.placeholderHeading;
+      const imageUrl = buildStreetViewImageUrl(metadata.pano_id, heading);
+
+      state.elements.photoFrame.innerHTML = "";
+      const img = document.createElement("img");
+      img.src = imageUrl;
+      img.alt = `Google Street View near ${title || "selected property"}`;
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.addEventListener("error", () => {
+        if (requestId === state.streetViewRequestId) {
+          renderStreetViewPlaceholder(title, "Street View metadata exists, but the image could not load. Check the API key restrictions and quota.");
+        }
+      });
+
+      const caption = document.createElement("div");
+      caption.className = "streetview-meta";
+      const date = metadata.date ? ` · ${escapeHtml(metadata.date)}` : "";
+      caption.innerHTML = `Google Street View${date}<br>${escapeHtml(metadata.copyright || "© Google")}`;
+
+      state.elements.photoFrame.appendChild(img);
+      state.elements.photoFrame.appendChild(caption);
+    } catch (error) {
+      if (requestId !== state.streetViewRequestId) return;
+      console.warn("Street View metadata lookup failed:", error);
+      renderStreetViewPlaceholder(title, "Street View could not be checked. Confirm the key allows Street View Static API and this website referrer.");
+    }
+  }
+
+  function getStreetViewSettings() {
+    const streetView = config.streetView || {};
+    return {
+      enabled: Boolean(config.enableStreetView || streetView.enableStreetView || streetView.enableGoogleStreetView),
+      key: config.googleStreetViewApiKey || streetView.googleStreetViewApiKey || "",
+      radius: Number.isFinite(streetView.searchRadiusMeters) ? streetView.searchRadiusMeters : 80,
+      imageSize: streetView.imageSize || "640x360",
+      fov: Number.isFinite(streetView.fov) ? streetView.fov : 75,
+      pitch: Number.isFinite(streetView.pitch) ? streetView.pitch : 0,
+      placeholderHeading: Number.isFinite(streetView.placeholderHeading) ? streetView.placeholderHeading : 0
+    };
+  }
+
+  async function getStreetViewMetadata(lat, lng) {
+    const streetViewSettings = getStreetViewSettings();
+    const url = new URL("https://maps.googleapis.com/maps/api/streetview/metadata");
+    url.searchParams.set("location", `${lat},${lng}`);
+    url.searchParams.set("radius", String(streetViewSettings.radius));
+    url.searchParams.set("key", streetViewSettings.key);
+
+    const response = await fetch(url.toString(), { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Street View metadata request failed with HTTP ${response.status}`);
+    }
+    return await response.json();
+  }
+
+  function buildStreetViewImageUrl(panoId, heading) {
+    const streetViewSettings = getStreetViewSettings();
+    const url = new URL("https://maps.googleapis.com/maps/api/streetview");
+    url.searchParams.set("size", streetViewSettings.imageSize);
+    url.searchParams.set("pano", panoId);
+    url.searchParams.set("heading", Number(heading || 0).toFixed(0));
+    url.searchParams.set("pitch", String(streetViewSettings.pitch));
+    url.searchParams.set("fov", String(streetViewSettings.fov));
+    url.searchParams.set("key", streetViewSettings.key);
+    return url.toString();
+  }
+
+  function renderStreetViewLoading(title) {
+    state.elements.photoFrame.innerHTML = `
+      <div class="photo-placeholder loading">
+        <span>⌕</span>
+        <strong>${escapeHtml(title || "Selected property")}</strong>
+        <small>Checking Google Street View metadata before loading an image…</small>
+      </div>
+    `;
+  }
+
+  function renderStreetViewPlaceholder(title, message) {
     state.elements.photoFrame.innerHTML = `
       <div class="photo-placeholder">
         <span>⌂</span>
         <strong>${escapeHtml(title || "Selected property")}</strong>
-        <small>Street imagery is disabled. Add a restricted Google Street View Static API key in js/config.js if you want images here.</small>
+        <small>${escapeHtml(message)}</small>
       </div>
     `;
+  }
+
+  function calculateHeading(fromLat, fromLng, toLat, toLng) {
+    const fromLatRad = degreesToRadians(fromLat);
+    const toLatRad = degreesToRadians(toLat);
+    const deltaLngRad = degreesToRadians(toLng - fromLng);
+    const y = Math.sin(deltaLngRad) * Math.cos(toLatRad);
+    const x = Math.cos(fromLatRad) * Math.sin(toLatRad) - Math.sin(fromLatRad) * Math.cos(toLatRad) * Math.cos(deltaLngRad);
+    return (radiansToDegrees(Math.atan2(y, x)) + 360) % 360;
+  }
+
+  function degreesToRadians(degrees) {
+    return (Number(degrees) * Math.PI) / 180;
+  }
+
+  function radiansToDegrees(radians) {
+    return (Number(radians) * 180) / Math.PI;
   }
 
   function renderRatingBreakdown(reviews) {

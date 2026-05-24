@@ -7,6 +7,7 @@
   <meta name="description" content="Flatwise.nz prototype using official LINZ NZ Property Boundaries for accurate property selection and local rental reviews." />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="preconnect" href="https://tile.openstreetmap.org" />
+  <link rel="preconnect" href="https://maps.googleapis.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
@@ -31,7 +32,7 @@
       <div class="hero-copy">
         <p class="eyebrow">Official LINZ boundary prototype</p>
         <h1>Click the actual property. Review the actual flat.</h1>
-        <p class="hero-text">Flatwise now uses the official LINZ NZ Property Boundaries layer instead of rough marker geometry. Zoom into Wellington, click a property polygon, then rate the rental experience against the exact selected boundary.</p>
+        <p class="hero-text">Flatwise now uses the official LINZ NZ Property Boundaries layer instead of rough marker geometry. Zoom into Wellington, click a property polygon, view a checked Street View image where available, then rate the rental experience against the exact selected boundary.</p>
         <div class="hero-actions">
           <button class="primary-button large" id="heroWellingtonButton" type="button">Open Wellington map</button>
           <a class="secondary-button large" href="#reviewComposer">Jump to review form</a>
@@ -58,6 +59,10 @@
             <dd>Auto-locked</dd>
           </div>
           <div>
+            <dt>Street view</dt>
+            <dd>Metadata first</dd>
+          </div>
+          <div>
             <dt>Review scale</dt>
             <dd>1–10</dd>
           </div>
@@ -69,7 +74,7 @@
       <div class="section-header compact">
         <p class="eyebrow">Select a rental</p>
         <h2>Accurate property boundaries from LINZ.</h2>
-        <p>Click a visible polygon to select a property. If the overlay has not loaded yet, clicking the map still sends a direct point lookup to LINZ and returns the property under your cursor.</p>
+        <p>Click a visible polygon to select a property. If the overlay has not loaded yet, clicking the map still sends a direct point lookup to LINZ and returns the property under your cursor. The property card checks Google Street View metadata before loading a static road image.</p>
       </div>
 
       <div class="map-panel">
@@ -223,6 +228,11 @@
           <span>04</span>
           <h3>Store local reviews</h3>
           <p>Saved notes stay in localStorage for safe testing before any real backend is added.</p>
+        </article>
+        <article>
+          <span>05</span>
+          <h3>Check Street View safely</h3>
+          <p>The card asks Google for Street View metadata first, then loads a static image only when a panorama exists nearby.</p>
         </article>
       </div>
     </section>

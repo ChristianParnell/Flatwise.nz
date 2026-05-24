@@ -1,4 +1,6 @@
-window.FLATWISE_CONFIG = {
+const FLATWISE_CONFIG = {
+  googleStreetViewApiKey: "AIzaSyCovK8j_rIRwhJyb0pwNzaVgnMaqD_Cuoc",
+  enableStreetView: true,
   map: {
     startCenter: [-41.29435, 174.7769],
     startZoom: 18,
@@ -48,7 +50,13 @@ window.FLATWISE_CONFIG = {
     storagePrefix: "flatwise_linz_reviews_v1:"
   },
   streetView: {
-    enableGoogleStreetView: false,
-    googleStreetViewApiKey: "YOUR_RESTRICTED_KEY"
+    enableGoogleStreetView: true,
+    searchRadiusMeters: 80,
+    imageSize: "640x360",
+    fov: 75,
+    pitch: 0,
+    placeholderHeading: 0
   }
 };
+
+window.FLATWISE_CONFIG = FLATWISE_CONFIG;
