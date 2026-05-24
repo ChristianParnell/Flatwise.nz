@@ -3,248 +3,232 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flatwise — Know before you move</title>
-  <meta name="description" content="Flatwise is a tenant-first map prototype for selecting NZ properties, reviewing demo flats, and rating the real rental experience." />
-
+  <title>Flatwise.nz — Property boundary review map</title>
+  <meta name="description" content="Flatwise.nz prototype using official LINZ NZ Property Boundaries for accurate property selection and local rental reviews." />
+  <link rel="preconnect" href="https://unpkg.com" />
   <link rel="preconnect" href="https://tile.openstreetmap.org" />
-  <link rel="preconnect" href="https://services.arcgis.com" />
-  <link rel="preconnect" href="https://nominatim.openstreetmap.org" />
-
-  <!-- Leaflet 1.9.4. CSS hash fixed to match the current official Leaflet CDN snippet. -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <a class="brand" href="#top" aria-label="Flatwise home">
-        <img src="assets/logo.svg" alt="" />
-        <span>
-          <strong>Flatwise</strong>
-          <small>Know before you move.</small>
-        </span>
-      </a>
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="Flatwise home">
+      <img src="assets/logo.svg" alt="" />
+      <span>
+        <strong>Flatwise.nz</strong>
+        <small>Tenant-first property reviews</small>
+      </span>
+    </a>
+    <nav class="nav-actions" aria-label="Primary navigation">
+      <a href="#mapArea">Map</a>
+      <a href="#howItWorks">How it works</a>
+      <button class="primary-button" id="topReviewButton" type="button">Write review</button>
+    </nav>
+  </header>
 
-      <nav class="nav-actions" aria-label="Primary actions">
-        <a href="#mapArea">Map</a>
-        <a href="#how">How it works</a>
-        <button id="topReviewButton" class="primary-button" type="button">Write review</button>
-      </nav>
-    </header>
+  <main id="top">
+    <section class="hero-section">
+      <div class="hero-copy">
+        <p class="eyebrow">Official LINZ boundary prototype</p>
+        <h1>Click the actual property. Review the actual flat.</h1>
+        <p class="hero-text">Flatwise now uses the official LINZ NZ Property Boundaries layer instead of rough marker geometry. Zoom into Wellington, click a property polygon, then rate the rental experience against the exact selected boundary.</p>
+        <div class="hero-actions">
+          <button class="primary-button large" id="heroWellingtonButton" type="button">Open Wellington map</button>
+          <a class="secondary-button large" href="#reviewComposer">Jump to review form</a>
+        </div>
+      </div>
+      <aside class="hero-card" aria-label="Flatwise status summary">
+        <div class="mini-map-card" aria-hidden="true">
+          <span class="mini-parcel parcel-one"></span>
+          <span class="mini-parcel parcel-two"></span>
+          <span class="mini-parcel parcel-three"></span>
+          <span class="mini-pin"></span>
+        </div>
+        <dl class="signal-grid">
+          <div>
+            <dt>Boundary source</dt>
+            <dd>LINZ official</dd>
+          </div>
+          <div>
+            <dt>Click mode</dt>
+            <dd>Polygon hit</dd>
+          </div>
+          <div>
+            <dt>Demo flats</dt>
+            <dd>Auto-locked</dd>
+          </div>
+          <div>
+            <dt>Review scale</dt>
+            <dd>1–10</dd>
+          </div>
+        </dl>
+      </aside>
+    </section>
 
-    <main id="top">
-      <section class="hero-section">
-        <div class="hero-copy">
-          <p class="eyebrow">Tenant-first property reviews</p>
-          <h1>Click a flat. Rate what actually matters.</h1>
-          <p class="hero-text">Flatwise is a GitHub Pages-ready prototype for reviewing demo flats on a map. Select a marker or parcel, compare the local rent guide, then score the living experience with clear 1–10 rental sliders.</p>
+    <section class="map-section" id="mapArea">
+      <div class="section-header compact">
+        <p class="eyebrow">Select a rental</p>
+        <h2>Accurate property boundaries from LINZ.</h2>
+        <p>Click a visible polygon to select a property. If the overlay has not loaded yet, clicking the map still sends a direct point lookup to LINZ and returns the property under your cursor.</p>
+      </div>
 
-          <div class="hero-actions">
-            <a class="primary-button large" href="#mapArea">Open the map</a>
-            <button id="heroWellingtonButton" class="secondary-button large" type="button">Jump to Wellington</button>
+      <div class="map-panel">
+        <div class="map-toolbar">
+          <form class="search-wrap" id="searchForm">
+            <label for="searchInput">Search address, street, or suburb</label>
+            <div class="search-box">
+              <input id="searchInput" type="search" placeholder="Try: 38 Jessie Street, Te Aro" autocomplete="street-address" />
+              <button class="icon-button" id="clearSearch" type="button" aria-label="Clear search">×</button>
+              <button class="secondary-button" type="submit">Search</button>
+            </div>
+          </form>
+          <div class="toolbar-actions">
+            <button class="secondary-button" id="wellingtonButton" type="button">Wellington</button>
+            <button class="secondary-button" id="focusButton" type="button">Focus selected</button>
+            <button class="primary-button" id="reviewButton" type="button">Write review</button>
           </div>
         </div>
 
-        <aside class="hero-card" aria-label="Prototype summary">
-          <div class="mini-map-card" aria-hidden="true">
-            <span class="mini-parcel parcel-one"></span>
-            <span class="mini-parcel parcel-two"></span>
-            <span class="mini-parcel parcel-three"></span>
-            <span class="mini-pin"></span>
-          </div>
+        <div class="map-options" aria-label="Map layer options">
+          <label><input id="propertyLinesToggle" type="checkbox" checked /> Show property lines</label>
+          <label><input id="buildingToggle" type="checkbox" checked /> Show building outlines</label>
+          <label><input id="selectedBoundaryToggle" type="checkbox" checked /> Highlight selected outline</label>
+          <p>Property boundaries come from the official LINZ NZ Property Boundaries layer. Demo flats are snapped to the official property polygon that contains their seed coordinate.</p>
+        </div>
 
-          <div class="hero-rating-card">
-            <div>
-              <span class="muted-label">Review system</span>
-              <h2>10-point rental score</h2>
-            </div>
-            <span class="rating-pill warning">6.2 / 10</span>
+        <div class="map-wrap">
+          <div id="map" role="application" aria-label="Interactive Flatwise property map"></div>
+          <div class="map-status" id="mapStatus" aria-live="polite">Loading map…</div>
+          <div class="map-legend" aria-label="Map legend">
+            <span><i class="legend-line property"></i>LINZ property boundary</span>
+            <span><i class="legend-line selected"></i>Selected property</span>
+            <span><i class="legend-line building"></i>Building outline</span>
           </div>
+        </div>
+      </div>
 
-          <dl class="signal-grid">
-            <div><dt>Reviews</dt><dd>Local demo</dd></div>
-            <div><dt>Score scale</dt><dd>1–10</dd></div>
-            <div><dt>Boundaries</dt><dd>Optional</dd></div>
-            <div><dt>Hosting</dt><dd>Pages-ready</dd></div>
-          </dl>
+      <div class="details-grid">
+        <aside class="details-panel empty-state" id="detailsEmpty">
+          <div class="empty-icon">⌂</div>
+          <h3>No flat selected yet</h3>
+          <p>Click a demo flat marker or an official LINZ property boundary. Flatwise will focus the selected boundary and prepare the review form.</p>
         </aside>
-      </section>
 
-      <section id="mapArea" class="map-section">
-        <div class="section-header compact">
-          <p class="eyebrow">Select a rental</p>
-          <h2>Demo flat reviews with optional property-line highlighting.</h2>
-          <p>Click a demo flat marker to open the rental review panel. You can also zoom in and click a property parcel directly. The cursor stays as a normal arrow so the interface feels cleaner.</p>
-        </div>
-
-        <div class="map-panel" aria-label="Flatwise property selector">
-          <div class="map-toolbar">
-            <div class="search-wrap">
-              <label for="searchInput">Search address, street, or suburb</label>
-              <form id="searchForm" class="search-box" autocomplete="off">
-                <input id="searchInput" name="search" type="search" placeholder="Try 38 Jessie Street, Te Aro, or Kelburn..." />
-                <button id="clearSearch" class="icon-button" type="button" aria-label="Clear search">×</button>
-              </form>
+        <aside class="details-panel hidden" id="detailsContent">
+          <div class="photo-frame" id="photoFrame"></div>
+          <div class="details-head">
+            <div>
+              <span class="muted-label" id="selectedType">Selected property</span>
+              <h3 id="selectedTitle">Selected property boundary</h3>
+              <p id="selectedSuburb">Wellington</p>
             </div>
-
-            <div class="toolbar-actions">
-              <button id="wellingtonButton" class="secondary-button" type="button">Wellington</button>
-              <button id="focusButton" class="secondary-button" type="button">Focus selected</button>
-              <button id="reviewButton" class="primary-button" type="button">Write review</button>
-            </div>
+            <strong class="rating-pill" id="selectedScore">No rating</strong>
           </div>
 
-          <div class="map-options" aria-label="Map display options">
-            <label class="toggle-row" for="propertyLinesToggle">
-              <input id="propertyLinesToggle" type="checkbox" checked />
-              <span>Show property lines</span>
+          <div class="info-pair">
+            <span>Official rent guide</span>
+            <strong id="rentBenchmark">No local data</strong>
+            <p id="rentDescription">Select a property to compare local market-rent guidance.</p>
+          </div>
+
+          <div class="info-pair">
+            <span>Boundary status</span>
+            <strong id="boundarySource">Property boundary</strong>
+            <p id="boundaryDescription">Official property outlines load when zoomed in or when you click the map.</p>
+          </div>
+
+          <section>
+            <h4>Rental rating breakdown</h4>
+            <div class="rating-breakdown" id="ratingBreakdown"></div>
+          </section>
+
+          <section>
+            <h4><span id="reviewCount">0</span> review(s)</h4>
+            <div class="review-list" id="reviewList"></div>
+          </section>
+
+          <button class="text-button" id="inlineReviewButton" type="button">Jump to review form</button>
+        </aside>
+
+        <section class="review-composer" id="reviewComposer">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Write your own review</p>
+              <h3>Score this property after selecting it on the map.</h3>
+            </div>
+            <span class="save-pill">Saved locally</span>
+          </div>
+          <p class="review-target">Currently reviewing: <strong id="reviewTargetLabel">No property selected</strong></p>
+
+          <form id="reviewForm" class="review-form">
+            <div class="form-grid">
+              <label class="field-block">Optional nickname
+                <input id="reviewNickname" type="text" placeholder="e.g. Former tenant" />
+              </label>
+              <label class="field-block">Tenancy period
+                <input id="reviewTenancyPeriod" type="text" placeholder="e.g. 2025–2026" />
+              </label>
+              <label class="field-block">Weekly rent paid
+                <input id="reviewWeeklyRent" type="text" placeholder="e.g. $690 / week" />
+              </label>
+              <label class="field-block">Would you recommend it?
+                <select id="reviewRecommend">
+                  <option value="">Prefer not to say</option>
+                  <option>Yes</option>
+                  <option>Maybe</option>
+                  <option>No</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="rating-inputs" id="ratingInputs"></div>
+
+            <label class="field-block">Your written review
+              <textarea id="reviewNote" rows="5" placeholder="Write what future tenants should know. Mention warmth, repairs, noise, pressure, or anything that affected living there."></textarea>
             </label>
-            <label class="toggle-row" for="selectedBoundaryToggle">
-              <input id="selectedBoundaryToggle" type="checkbox" checked />
-              <span>Highlight selected outline</span>
-            </label>
-            <p>Property outlines use the LINZ parcel overlay when it is available. Reviews still work even if the boundary service is slow or turned off.</p>
-          </div>
 
-          <div id="map" role="application" aria-label="Map for selecting flat properties"></div>
-
-          <div class="map-status-row">
-            <p id="mapStatus">Loading map…</p>
-            <div class="legend" aria-label="Map legend">
-              <span><i class="legend-parcel"></i> Parcel line</span>
-              <span><i class="legend-building"></i> Building outline</span>
-              <span><i class="legend-selected"></i> Selected outline</span>
+            <div class="form-actions">
+              <button class="secondary-button" id="cancelReview" type="button">Clear form</button>
+              <button class="primary-button" type="submit">Save review locally</button>
             </div>
-          </div>
-        </div>
-
-        <section class="details-panel" aria-live="polite">
-          <div id="detailsEmpty" class="details-empty">
-            <div class="empty-icon">⌂</div>
-            <h3>No flat selected yet</h3>
-            <p>Click one of the demo flat markers, or zoom closer and click an official parcel boundary. Flatwise will highlight the selected property outline, then scroll you down to the review form.</p>
-          </div>
-
-          <div id="detailsContent" class="details-content hidden">
-            <div class="photo-frame" id="photoFrame"></div>
-            <div class="details-main">
-              <div class="details-head">
-                <div>
-                  <span id="selectedType" class="muted-label">Selected flat</span>
-                  <h3 id="selectedTitle">Selected flat</h3>
-                  <p id="selectedSuburb" class="suburb-line">Wellington</p>
-                </div>
-                <span id="selectedScore" class="rating-pill">No rating</span>
-              </div>
-
-              <div class="panel-grid">
-                <article class="info-card">
-                  <span class="muted-label">Official rent guide</span>
-                  <strong id="rentBenchmark">No local data</strong>
-                  <p id="rentDescription">Select a flat to compare local market-rent guidance.</p>
-                </article>
-                <article class="info-card">
-                  <span class="muted-label">Boundary status</span>
-                  <strong id="boundarySource">Property line</strong>
-                  <p id="boundaryDescription">Property outlines are optional and load when zoomed in.</p>
-                </article>
-              </div>
-
-              <div class="panel-title-row">
-                <h4>Rental rating breakdown</h4>
-                <span><strong id="reviewCount">0</strong> review(s)</span>
-              </div>
-              <div id="ratingBreakdown" class="breakdown-list"></div>
-
-              <div class="panel-title-row">
-                <h4>Tenant notes</h4>
-                <button id="inlineReviewButton" class="text-button" type="button">Jump to review form</button>
-              </div>
-              <div id="reviewList" class="review-list"></div>
-
-              <section id="reviewComposer" class="review-composer" aria-label="Write your rental review">
-                <div class="composer-head">
-                  <div>
-                    <p class="eyebrow">Write your own review</p>
-                    <h4>Score this flat after selecting it on the map.</h4>
-                    <p>Currently reviewing: <strong id="reviewTargetLabel">No flat selected</strong></p>
-                  </div>
-                  <span class="composer-badge">Saved locally</span>
-                </div>
-
-                <form id="reviewForm" class="inline-review-form">
-                  <div class="review-meta-grid">
-                    <label class="field-block" for="reviewNickname">
-                      Optional nickname
-                      <input id="reviewNickname" name="nickname" type="text" maxlength="40" placeholder="Example: Former tenant" />
-                    </label>
-                    <label class="field-block" for="reviewTenancyPeriod">
-                      Tenancy period
-                      <input id="reviewTenancyPeriod" name="tenancyPeriod" type="text" maxlength="40" placeholder="Example: 2024–2025" />
-                    </label>
-                    <label class="field-block" for="reviewWeeklyRent">
-                      Weekly rent paid
-                      <input id="reviewWeeklyRent" name="weeklyRent" type="text" maxlength="40" placeholder="Example: $690 / week" />
-                    </label>
-                    <label class="field-block" for="reviewRecommend">
-                      Would you recommend it?
-                      <select id="reviewRecommend" name="recommend">
-                        <option value="">Prefer not to say</option>
-                        <option value="Yes">Yes</option>
-                        <option value="Maybe">Maybe</option>
-                        <option value="No">No</option>
-                      </select>
-                    </label>
-                  </div>
-
-                  <div id="ratingInputs" class="form-grid"></div>
-
-                  <label class="field-block" for="reviewNote">
-                    Your written review
-                    <textarea id="reviewNote" name="note" rows="5" maxlength="900" placeholder="Example: The location was useful, but the bedroom windows collected condensation all winter..."></textarea>
-                  </label>
-
-                  <div class="dialog-actions">
-                    <button class="secondary-button" type="button" id="cancelReview">Clear form</button>
-                    <button class="primary-button" type="submit">Save review locally</button>
-                  </div>
-                  <p class="small-print">Prototype only: your review is saved in this browser with localStorage. A real public version should include verification, moderation, dispute reporting, and privacy protection.</p>
-                </form>
-              </section>
-            </div>
-          </div>
+          </form>
+          <p class="fine-print">Prototype only: reviews save inside this browser with localStorage. A public version should add account verification, moderation, privacy controls, and a dispute process.</p>
         </section>
-      </section>
+      </div>
+    </section>
 
-      <section id="how" class="how-section">
-        <div class="section-header">
-          <p class="eyebrow">How this prototype works</p>
-          <h2>Map selection first. Structured reviews second.</h2>
-          <p>The base map uses OpenStreetMap tiles. Optional property outlines come from LINZ parcel and building services. Reviews are saved locally in this demo, which keeps the prototype safe to test without needing accounts or a database.</p>
-        </div>
+    <section class="how-section" id="howItWorks">
+      <div class="section-header">
+        <p class="eyebrow">How this prototype works</p>
+        <h2>LINZ boundary first. Review second.</h2>
+        <p>The map no longer relies on rough fake parcel boxes. Demo flats start with a coordinate, then Flatwise asks the official LINZ boundary layer which real property contains that point.</p>
+      </div>
+      <div class="steps-grid">
+        <article>
+          <span>01</span>
+          <h3>Load official property polygons</h3>
+          <p>At close zoom levels, the map pulls LINZ NZ Property Boundaries as GeoJSON for the current view.</p>
+        </article>
+        <article>
+          <span>02</span>
+          <h3>Click the exact boundary</h3>
+          <p>The polygon itself is interactive. A background click also performs a direct LINZ point lookup.</p>
+        </article>
+        <article>
+          <span>03</span>
+          <h3>Snap demo flats</h3>
+          <p>Demo markers attach to the official property polygon under their seed coordinate instead of staying as loose map pins.</p>
+        </article>
+        <article>
+          <span>04</span>
+          <h3>Store local reviews</h3>
+          <p>Saved notes stay in localStorage for safe testing before any real backend is added.</p>
+        </article>
+      </div>
+    </section>
+  </main>
 
-        <div class="steps-grid">
-          <article><span>01</span><h3>Click a demo flat</h3><p>Markers are seeded with example reviews, so the page immediately shows how Flatwise would feel with live rental feedback.</p></article>
-          <article><span>02</span><h3>Rate the rental</h3><p>The form uses 1–10 sliders across ten focused rental experience checks, so the score feels detailed without becoming messy.</p></article>
-          <article><span>03</span><h3>Outline the property</h3><p>When property lines are enabled, Flatwise tries to highlight the closest parcel outline for the selected demo flat.</p></article>
-          <article><span>04</span><h3>Store locally</h3><p>Saved reviews stay in the browser through localStorage. A real launch would need user accounts, moderation, privacy controls, and reporting.</p></article>
-        </div>
-      </section>
-    </main>
-  </div>
-
-
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="js/config.js"></script>
   <script src="js/app.js"></script>
 </body>
