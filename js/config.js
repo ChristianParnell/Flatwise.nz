@@ -1,5 +1,5 @@
 const FLATWISE_CONFIG = {
-  googleStreetViewApiKey: "API CODE GOES HERE",
+  googleStreetViewApiKey: "AIzaSyCovK8j_rIRwhJyb0pwNzaVgnMaqD_Cuoc",
   enableStreetView: true,
   map: {
     startCenter: [-41.29435, 174.7769],
