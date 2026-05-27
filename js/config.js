@@ -58,12 +58,26 @@ const FLATWISE_CONFIG = {
   },
   sunlight: {
     defaultMode: "off",
+
+    // Performance-first sunlight settings. These keep the daylight overlay live
+    // without forcing the browser to calculate thousands of shadow intersections.
+    resolutionScale: 0.46,
+    fastGridStepPixels: 15,
+    maxSunSamples: 3,
+    maxBuildingFeatures: 55,
+    maxShadowPolygons: 28,
+    shadowSearchPaddingPixels: 170,
+    redrawWhileMoving: false,
+    skipDuplicateDraws: true,
+
+    // Visual and estimation settings.
     defaultBuildingHeightMeters: 8,
-    maxShadowLengthMeters: 180,
-    gridStepPixels: 9,
-    propertyPaddingPixels: 18,
-    shadowOpacity: 0.28,
-    heatOpacity: 0.78
+    maxShadowLengthMeters: 120,
+    propertyPaddingPixels: 16,
+    shadowOpacity: 0.22,
+    shadowWashOpacity: 0.12,
+    heatOpacity: 0.62,
+    heatUsesShadows: true
   }
 };
 

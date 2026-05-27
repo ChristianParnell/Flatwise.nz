@@ -198,8 +198,8 @@ img { max-width: 100%; }
 .leaflet-tile-container img { backface-visibility: hidden; transform: translateZ(0); }
 .leaflet-property-pane svg path, .leaflet-selected-pane svg path { vector-effect: non-scaling-stroke; transition: fill-opacity 120ms ease, stroke-opacity 120ms ease; }
 .leaflet-building-pane { mix-blend-mode: multiply; }
-.leaflet-sunlight-pane { pointer-events: none; mix-blend-mode: multiply; }
-.flatwise-sunlight-canvas { pointer-events: none; }
+.leaflet-sunlight-pane { pointer-events: none; mix-blend-mode: normal; opacity: 0.86; contain: strict; }
+.flatwise-sunlight-canvas { pointer-events: none; image-rendering: auto; will-change: transform, opacity; transition: opacity 160ms ease; }
 
 .map-status { position: absolute; left: 1rem; bottom: 1rem; z-index: 500; max-width: min(620px, calc(100% - 2rem)); padding: 0.75rem 0.9rem; border: 1px solid rgba(16, 19, 18, 0.15); border-radius: 18px; background: rgba(255, 250, 240, 0.93); color: var(--ink); font-size: 0.9rem; font-weight: 850; box-shadow: 0 16px 34px rgba(16, 19, 18, 0.13); }
 .map-legend { position: absolute; right: 1rem; top: 1rem; z-index: 500; display: grid; gap: 0.5rem; padding: 0.75rem 0.85rem; border: 1px solid rgba(16, 19, 18, 0.13); border-radius: 18px; background: rgba(255, 250, 240, 0.92); box-shadow: 0 16px 34px rgba(16, 19, 18, 0.11); color: #2f3834; font-size: 0.82rem; font-weight: 850; }

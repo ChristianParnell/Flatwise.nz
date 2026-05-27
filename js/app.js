@@ -1353,42 +1353,74 @@
       this.selectedFeature = options.selectedFeature || null;
       this.buildingFeatures = options.buildingFeatures || [];
       this.canvas = null;
+      this._redrawTimer = 0;
       this._frame = 0;
+      this._isMoving = false;
+      this._lastDrawKey = "";
+      this._activeDrawId = 0;
+      this._shadowMaskCanvas = document.createElement("canvas");
+      this._shadowMaskCtx = this._shadowMaskCanvas.getContext("2d", { willReadFrequently: true });
     }
 
     onAdd(map) {
       this._map = map;
       this.canvas = L.DomUtil.create("canvas", "flatwise-sunlight-canvas leaflet-zoom-animated");
+      this.canvas.setAttribute("aria-hidden", "true");
       map.getPane("sunlightPane").appendChild(this.canvas);
-      map.on("moveend zoomend resize viewreset", this.redrawSoon, this);
-      this.redrawSoon();
+      map.on("movestart zoomstart", this.handleMoveStart, this);
+      map.on("moveend zoomend resize viewreset", this.handleMoveEnd, this);
+      this.redrawSoon(80);
     }
 
     onRemove(map) {
-      map.off("moveend zoomend resize viewreset", this.redrawSoon, this);
+      map.off("movestart zoomstart", this.handleMoveStart, this);
+      map.off("moveend zoomend resize viewreset", this.handleMoveEnd, this);
       if (this.canvas?.parentNode) this.canvas.parentNode.removeChild(this.canvas);
       this.canvas = null;
+      if (this._redrawTimer) window.clearTimeout(this._redrawTimer);
       if (this._frame) cancelAnimationFrame(this._frame);
+    }
+
+    handleMoveStart() {
+      this._isMoving = true;
+      if (this.canvas) this.canvas.style.opacity = "0.38";
+      if (this._redrawTimer) window.clearTimeout(this._redrawTimer);
+      if (this._frame) cancelAnimationFrame(this._frame);
+    }
+
+    handleMoveEnd() {
+      this._isMoving = false;
+      if (this.canvas) this.canvas.style.opacity = "";
+      this.redrawSoon(140);
     }
 
     setMode(mode) {
       this.mode = mode || "off";
-      this.redrawSoon();
+      this._lastDrawKey = "";
+      this.redrawSoon(50);
     }
 
     setSelectedFeature(feature) {
       this.selectedFeature = feature || null;
-      this.redrawSoon();
+      this._lastDrawKey = "";
+      this.redrawSoon(70);
     }
 
     setBuildingFeatures(features) {
-      this.buildingFeatures = Array.isArray(features) ? features : [];
-      this.redrawSoon();
+      const maxFeatures = config.sunlight?.maxBuildingFeatures ?? 55;
+      this.buildingFeatures = Array.isArray(features) ? features.slice(0, maxFeatures) : [];
+      this._lastDrawKey = "";
+      this.redrawSoon(160);
     }
 
-    redrawSoon() {
+    redrawSoon(delay = 110) {
+      if (!this._map || !this.canvas) return;
+      if (this._redrawTimer) window.clearTimeout(this._redrawTimer);
       if (this._frame) cancelAnimationFrame(this._frame);
-      this._frame = requestAnimationFrame(() => this.redraw());
+      this._redrawTimer = window.setTimeout(() => {
+        this._redrawTimer = 0;
+        this._frame = requestAnimationFrame(() => this.redraw());
+      }, Math.max(0, delay));
     }
 
     redraw() {
@@ -1399,20 +1431,51 @@
       const size = map.getSize();
       const topLeft = map.containerPointToLayerPoint([0, 0]);
       L.DomUtil.setPosition(this.canvas, topLeft);
-      this.canvas.width = size.x;
-      this.canvas.height = size.y;
 
-      const ctx = this.canvas.getContext("2d");
-      ctx.clearRect(0, 0, size.x, size.y);
+      const scale = getSunlightResolutionScale(map);
+      const cssWidth = Math.max(1, Math.round(size.x));
+      const cssHeight = Math.max(1, Math.round(size.y));
+      const renderWidth = Math.max(1, Math.round(cssWidth * scale));
+      const renderHeight = Math.max(1, Math.round(cssHeight * scale));
+
+      this.canvas.style.width = `${cssWidth}px`;
+      this.canvas.style.height = `${cssHeight}px`;
+      if (this.canvas.width !== renderWidth) this.canvas.width = renderWidth;
+      if (this.canvas.height !== renderHeight) this.canvas.height = renderHeight;
+
+      const ctx = this.canvas.getContext("2d", { alpha: true });
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      ctx.clearRect(0, 0, cssWidth, cssHeight);
 
       if (this.mode === "off" || !this.selectedFeature) return;
+      if (this._isMoving && config.sunlight?.redrawWhileMoving === false) return;
 
       const rings = featureToCanvasRings(this.selectedFeature, map);
       if (!rings.length) return;
 
-      const selectedBounds = pixelBoundsFromRings(rings).pad(config.sunlight?.propertyPaddingPixels ?? 18);
+      const selectedBounds = pixelBoundsFromRings(rings).pad(config.sunlight?.propertyPaddingPixels ?? 16);
+      if ((typeof selectedBounds.isValid === "function" && !selectedBounds.isValid()) || selectedBounds.max.x < 0 || selectedBounds.max.y < 0 || selectedBounds.min.x > cssWidth || selectedBounds.min.y > cssHeight) return;
+
+      const drawKey = [
+        this.mode,
+        map.getZoom(),
+        Math.round(selectedBounds.min.x),
+        Math.round(selectedBounds.min.y),
+        Math.round(selectedBounds.max.x),
+        Math.round(selectedBounds.max.y),
+        this.buildingFeatures.length
+      ].join(":");
+
+      if (drawKey === this._lastDrawKey && config.sunlight?.skipDuplicateDraws !== false) return;
+      this._lastDrawKey = drawKey;
+
       const samples = buildSunSamples(this.mode, getFeatureCentre(this.selectedFeature) || map.getCenter());
-      const shadowCollections = samples.map((sun) => buildShadowPolygons(this.buildingFeatures, sun, map, selectedBounds));
+      const activeDrawId = ++this._activeDrawId;
+      const shadowsNeeded = this.mode !== "heat" || config.sunlight?.heatUsesShadows !== false;
+      const shadowCollections = shadowsNeeded
+        ? samples.map((sun) => buildShadowPolygons(this.buildingFeatures, sun, map, selectedBounds))
+        : samples.map(() => []);
+      if (activeDrawId !== this._activeDrawId) return;
 
       ctx.save();
       clipToFeature(ctx, rings);
@@ -1420,52 +1483,81 @@
       if (this.mode === "shadow") {
         this.drawShadowMode(ctx, rings, shadowCollections[0] || [], selectedBounds);
       } else {
-        this.drawHeatMode(ctx, rings, selectedBounds, samples, shadowCollections);
+        this.drawHeatMode(ctx, rings, selectedBounds, samples, shadowCollections, scale, renderWidth, renderHeight);
       }
 
       ctx.restore();
       this.drawPropertySoftEdge(ctx, rings);
     }
 
-    drawHeatMode(ctx, rings, selectedBounds, samples, shadowCollections) {
-      const step = config.sunlight?.gridStepPixels || 9;
-      const heatOpacity = config.sunlight?.heatOpacity ?? 0.78;
+    drawHeatMode(ctx, rings, selectedBounds, samples, shadowCollections, scale, renderWidth, renderHeight) {
+      const mapZoom = this._map?.getZoom?.() ?? 18;
+      const baseStep = config.sunlight?.fastGridStepPixels || config.sunlight?.gridStepPixels || 14;
+      const step = mapZoom >= 19 ? Math.max(baseStep, 16) : Math.max(baseStep, 14);
+      const heatOpacity = config.sunlight?.heatOpacity ?? 0.62;
       const centre = selectedBounds.getCenter();
+      const shadowMasks = shadowCollections.map((polygons) => this.buildShadowMask(polygons, scale, renderWidth, renderHeight));
+      const startX = Math.max(0, Math.floor(selectedBounds.min.x));
+      const endX = Math.min(ctx.canvas.width / scale, Math.ceil(selectedBounds.max.x));
+      const startY = Math.max(0, Math.floor(selectedBounds.min.y));
+      const endY = Math.min(ctx.canvas.height / scale, Math.ceil(selectedBounds.max.y));
 
-      for (let y = Math.max(0, Math.floor(selectedBounds.min.y)); y <= selectedBounds.max.y; y += step) {
-        for (let x = Math.max(0, Math.floor(selectedBounds.min.x)); x <= selectedBounds.max.x; x += step) {
+      ctx.save();
+      ctx.globalAlpha = 1;
+      for (let y = startY; y <= endY; y += step) {
+        for (let x = startX; x <= endX; x += step) {
           if (!pointInFeatureRings({ x, y }, rings)) continue;
 
           let score = 0;
-          samples.forEach((sun, index) => {
-            const shadowed = pointInAnyPolygon({ x, y }, shadowCollections[index] || []);
-            score += scoreSunlightAtPoint({ x, y }, centre, sun, shadowed, this.mode);
-          });
+          for (let index = 0; index < samples.length; index += 1) {
+            const shadowed = sampleShadowMask(shadowMasks[index], x, y, scale);
+            score += scoreSunlightAtPoint({ x, y }, centre, samples[index], shadowed, this.mode);
+          }
           score = clampNumber(score / Math.max(samples.length, 1), 0, 1);
 
           ctx.fillStyle = heatColor(score, heatOpacity);
-          ctx.fillRect(x - step / 2, y - step / 2, step + 1, step + 1);
+          ctx.fillRect(x - step * 0.55, y - step * 0.55, step * 1.24, step * 1.24);
         }
       }
+      ctx.restore();
 
       const currentShadows = shadowCollections[0] || [];
-      ctx.globalAlpha = 0.18;
-      ctx.fillStyle = "#24384a";
-      currentShadows.forEach((poly) => fillPolygon(ctx, poly));
-      ctx.globalAlpha = 1;
+      if (currentShadows.length) {
+        ctx.save();
+        ctx.globalAlpha = config.sunlight?.shadowWashOpacity ?? 0.12;
+        ctx.fillStyle = "#24384a";
+        currentShadows.forEach((poly) => fillPolygon(ctx, poly));
+        ctx.restore();
+      }
+    }
+
+    buildShadowMask(polygons, scale, renderWidth, renderHeight) {
+      if (!polygons?.length) return null;
+      const canvas = this._shadowMaskCanvas;
+      const ctx = this._shadowMaskCtx;
+      if (!ctx) return null;
+      if (canvas.width !== renderWidth) canvas.width = renderWidth;
+      if (canvas.height !== renderHeight) canvas.height = renderHeight;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, renderWidth, renderHeight);
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      ctx.fillStyle = "rgba(0,0,0,1)";
+      polygons.forEach((poly) => fillPolygon(ctx, poly));
+      const image = ctx.getImageData(0, 0, renderWidth, renderHeight);
+      return { data: image.data, width: renderWidth, height: renderHeight };
     }
 
     drawShadowMode(ctx, rings, shadows, selectedBounds) {
-      ctx.fillStyle = "rgba(255, 250, 240, 0.42)";
+      ctx.fillStyle = "rgba(255, 250, 240, 0.38)";
       rings.forEach((polygon) => polygon.forEach((ring) => fillPolygon(ctx, ring)));
 
       const gradient = ctx.createLinearGradient(selectedBounds.min.x, selectedBounds.min.y, selectedBounds.max.x, selectedBounds.max.y);
-      gradient.addColorStop(0, "rgba(255, 213, 103, 0.26)");
-      gradient.addColorStop(1, "rgba(255, 250, 240, 0.06)");
+      gradient.addColorStop(0, "rgba(255, 213, 103, 0.24)");
+      gradient.addColorStop(1, "rgba(255, 250, 240, 0.05)");
       ctx.fillStyle = gradient;
       rings.forEach((polygon) => polygon.forEach((ring) => fillPolygon(ctx, ring)));
 
-      ctx.fillStyle = `rgba(28, 43, 61, ${config.sunlight?.shadowOpacity ?? 0.28})`;
+      ctx.fillStyle = `rgba(28, 43, 61, ${config.sunlight?.shadowOpacity ?? 0.22})`;
       shadows.forEach((poly) => fillPolygon(ctx, poly));
     }
 
@@ -1478,14 +1570,22 @@
     }
   }
 
+  function getSunlightResolutionScale(map) {
+    const base = config.sunlight?.resolutionScale ?? 0.46;
+    const zoom = map?.getZoom?.() ?? 18;
+    const zoomPenalty = zoom >= 19 ? 0.9 : 1;
+    return clampNumber(base * zoomPenalty, 0.28, 0.72);
+  }
+
   function buildSunSamples(mode, centre) {
     const lat = centre?.lat ?? -41.29435;
     const lng = centre?.lng ?? 174.7769;
     const now = new Date();
+    const maxSamples = Math.max(1, Math.min(config.sunlight?.maxSunSamples ?? 3, 4));
 
-    if (mode === "winter") return makeSeasonalSamples(now.getFullYear(), 5, 21, [9, 11, 13, 15], lat, lng);
-    if (mode === "summer") return makeSeasonalSamples(now.getFullYear(), 11, 21, [8, 10, 12, 14, 16, 18], lat, lng);
-    if (mode === "daily") return makeDailySamples(now, [8, 10, 12, 14, 16], lat, lng);
+    if (mode === "winter") return makeSeasonalSamples(now.getFullYear(), 5, 21, [10, 12, 14], lat, lng).slice(0, maxSamples);
+    if (mode === "summer") return makeSeasonalSamples(now.getFullYear(), 11, 21, [9, 12, 15], lat, lng).slice(0, maxSamples);
+    if (mode === "daily") return makeDailySamples(now, [9, 12, 15], lat, lng).slice(0, maxSamples);
 
     const sampleDate = new Date(now);
     if (mode === "heat") sampleDate.setHours(12, 0, 0, 0);
@@ -1499,10 +1599,11 @@
   }
 
   function makeSeasonalSamples(year, monthIndex, day, hours, lat, lng) {
-    return hours.map((hour) => {
+    const samples = hours.map((hour) => {
       const date = new Date(year, monthIndex, day, hour, 0, 0, 0);
       return getSunPosition(date, lat, lng);
     }).filter((sun) => sun.altitude > 0.02);
+    return samples.length ? samples : [getSunPosition(new Date(year, monthIndex, day, 12, 0, 0, 0), lat, lng)];
   }
 
   function makeDailySamples(date, hours, lat, lng) {
@@ -1534,6 +1635,14 @@
     return { altitude, azimuth, date };
   }
 
+  function sampleShadowMask(mask, x, y, scale) {
+    if (!mask) return false;
+    const px = Math.floor(x * scale);
+    const py = Math.floor(y * scale);
+    if (px < 0 || py < 0 || px >= mask.width || py >= mask.height) return false;
+    return mask.data[((py * mask.width + px) * 4) + 3] > 24;
+  }
+
   function scoreSunlightAtPoint(point, centre, sun, shadowed, mode) {
     const altitudeScore = clampNumber((sun.altitude - 0.02) / 1.22, 0.04, 1);
     const dx = point.x - centre.x;
@@ -1542,7 +1651,7 @@
     const sunScreenAngle = Math.atan2(-Math.cos(sun.azimuth), Math.sin(sun.azimuth));
     const facing = 0.5 + 0.5 * Math.cos(angle - sunScreenAngle);
     const seasonalWeight = mode === "winter" ? 0.82 : mode === "summer" ? 1.12 : 1;
-    const shadowPenalty = shadowed ? (mode === "winter" ? 0.34 : 0.52) : 1;
+    const shadowPenalty = shadowed ? (mode === "winter" ? 0.36 : 0.55) : 1;
     return clampNumber((altitudeScore * 0.76 + facing * 0.24) * seasonalWeight * shadowPenalty, 0, 1);
   }
 
@@ -1564,7 +1673,7 @@
       }
     }
 
-    const amount = (score - left.at) / Math.max(0.001, right.at - left.at);
+    const amount = clampNumber((score - left.at) / Math.max(0.001, right.at - left.at), 0, 1);
     const rgb = left.color.map((value, index) => Math.round(value + (right.color[index] - value) * amount));
     return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
   }
@@ -1572,8 +1681,9 @@
   function buildShadowPolygons(features, sun, map, selectedBounds) {
     if (!Array.isArray(features) || !features.length || sun.altitude <= 0.02) return [];
 
-    const maxShadowMeters = config.sunlight?.maxShadowLengthMeters || 180;
+    const maxShadowMeters = config.sunlight?.maxShadowLengthMeters || 120;
     const defaultHeight = config.sunlight?.defaultBuildingHeightMeters || 8;
+    const maxShadows = config.sunlight?.maxShadowPolygons ?? 28;
     const centre = map.getCenter();
     const metersPerPixel = getMetersPerPixel(centre.lat, map.getZoom());
     const shadowDirection = {
@@ -1581,28 +1691,41 @@
       y: Math.cos(sun.azimuth)
     };
 
-    const result = [];
+    const searchBounds = selectedBounds.pad(config.sunlight?.shadowSearchPaddingPixels ?? 170);
+    const candidates = [];
+
     features.forEach((feature) => {
       const buildingRings = featureToCanvasRings(feature, map);
       if (!buildingRings.length) return;
 
-      const featureBounds = pixelBoundsFromRings(buildingRings).pad(80);
-      if (!featureBounds.intersects(selectedBounds.pad(260))) return;
+      const featureBounds = pixelBoundsFromRings(buildingRings).pad(24);
+      if (!featureBounds.intersects(searchBounds)) return;
+      const centrePoint = featureBounds.getCenter();
+      const dx = centrePoint.x - selectedBounds.getCenter().x;
+      const dy = centrePoint.y - selectedBounds.getCenter().y;
+      const distanceSq = dx * dx + dy * dy;
+      candidates.push({ feature, buildingRings, featureBounds, distanceSq });
+    });
 
-      const height = estimateBuildingHeight(feature, defaultHeight);
-      const lengthMeters = clampNumber(height / Math.tan(Math.max(sun.altitude, 0.08)), 8, maxShadowMeters);
+    candidates.sort((a, b) => a.distanceSq - b.distanceSq);
+
+    const result = [];
+    for (const item of candidates.slice(0, maxShadows)) {
+      const height = estimateBuildingHeight(item.feature, defaultHeight);
+      const lengthMeters = clampNumber(height / Math.tan(Math.max(sun.altitude, 0.12)), 6, maxShadowMeters);
       const lengthPixels = lengthMeters / Math.max(metersPerPixel, 0.01);
       const offset = { x: shadowDirection.x * lengthPixels, y: shadowDirection.y * lengthPixels };
 
-      buildingRings.forEach((polygon) => {
+      item.buildingRings.forEach((polygon) => {
+        if (result.length >= maxShadows) return;
         const outer = polygon[0];
         if (!outer || outer.length < 3) return;
         const shifted = outer.map((point) => ({ x: point.x + offset.x, y: point.y + offset.y })).reverse();
         result.push([...outer, ...shifted]);
       });
-    });
+    }
 
-    return result.slice(0, 80);
+    return result;
   }
 
   function estimateBuildingHeight(feature, fallback) {
