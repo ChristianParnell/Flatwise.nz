@@ -6,15 +6,15 @@
   const defaultRating = Math.ceil(ratingScale / 2);
 
   const reviewFields = [
-    { key: "rentValue", label: "Rent value", hint: "Does the rent feel fair for the space and condition?" },
-    { key: "warmthInsulation", label: "Warmth & insulation", hint: "Does the flat hold heat without constant power use?" },
-    { key: "drynessMould", label: "Dryness & mould control", hint: "Are dampness and condensation properly managed?" },
-    { key: "repairsResponse", label: "Repairs response", hint: "Are maintenance issues handled properly?" },
-    { key: "noisePrivacy", label: "Noise & privacy", hint: "Can tenants sleep and study without constant disturbance?" },
-    { key: "safetySecurity", label: "Safety & security", hint: "Do locks, lighting, and access feel safe?" },
-    { key: "sunlightVentilation", label: "Sunlight & ventilation", hint: "Does the flat get useful light and fresh airflow?" },
-    { key: "waterPowerReliability", label: "Water & power reliability", hint: "Are hot water, pressure, heating, and sockets dependable?" },
-    { key: "landlordCommunication", label: "Landlord communication", hint: "Is communication clear and respectful?" },
+    { key: "rentValue", label: "Rent value", hint: "Does the rent feel fair for the space, condition, and location?" },
+    { key: "warmthInsulation", label: "Warmth & insulation", hint: "Does the flat hold heat without needing constant power use?" },
+    { key: "drynessMould", label: "Dryness & mould control", hint: "Are dampness, condensation, and mould properly under control?" },
+    { key: "repairsResponse", label: "Repairs response", hint: "Are maintenance issues handled quickly and properly?" },
+    { key: "noisePrivacy", label: "Noise & privacy", hint: "Can tenants sleep, study, and live without constant disturbance?" },
+    { key: "safetySecurity", label: "Safety & security", hint: "Do locks, lighting, access, and the surrounding area feel safe?" },
+    { key: "sunlightVentilation", label: "Sunlight & ventilation", hint: "Does the flat get useful natural light and fresh airflow?" },
+    { key: "waterPowerReliability", label: "Water & power reliability", hint: "Are hot water, pressure, heating, sockets, and utilities dependable?" },
+    { key: "landlordCommunication", label: "Landlord communication", hint: "Is communication clear, respectful, and not unnecessarily stressful?" },
     { key: "overallLiveability", label: "Overall liveability", hint: "Would you recommend this flat to someone you care about?" }
   ];
 
@@ -24,6 +24,7 @@
     propertyLayer: null,
     buildingLayer: null,
     selectedBoundaryLayer: null,
+    sunlightLayer: null,
     selectedMarker: null,
     activePropertyLayer: null,
     selected: null,
@@ -32,6 +33,7 @@
     propertyCache: new Map(),
     buildingCache: new Map(),
     pointCache: new Map(),
+    currentBuildingFeatures: [],
     pendingBoundaryTimer: 0,
     propertyAbortController: null,
     buildingAbortController: null,
@@ -40,6 +42,7 @@
     showPropertyLines: true,
     showBuildings: true,
     highlightSelectedBoundary: true,
+    sunlightMode: config.sunlight?.defaultMode || "off",
     streetViewRequestId: 0,
     elements: {}
   };
@@ -64,18 +67,20 @@
     createMap();
     bindUIEvents();
     renderEmptyDetails();
+    updateSunlightReadout();
   }
 
   function bindElements() {
     const ids = [
       "map", "mapStatus", "searchForm", "searchInput", "clearSearch", "wellingtonButton",
       "heroWellingtonButton", "focusButton", "reviewButton", "topReviewButton", "inlineReviewButton",
-      "propertyLinesToggle", "buildingToggle", "selectedBoundaryToggle", "detailsEmpty",
-      "detailsContent", "photoFrame", "selectedType", "selectedTitle", "selectedSuburb",
+      "propertyLinesToggle", "buildingToggle", "selectedBoundaryToggle", "sunlightMode",
+      "detailsEmpty", "detailsContent", "photoFrame", "selectedType", "selectedTitle", "selectedSuburb",
       "selectedScore", "rentBenchmark", "rentDescription", "boundarySource", "boundaryDescription",
       "reviewCount", "ratingBreakdown", "reviewList", "reviewComposer", "reviewForm",
       "reviewTargetLabel", "ratingInputs", "reviewNote", "reviewNickname", "reviewTenancyPeriod",
-      "reviewWeeklyRent", "reviewRecommend", "cancelReview"
+      "reviewWeeklyRent", "reviewRecommend", "cancelReview", "sunlightReadout", "sunlightTitle", "sunlightText",
+      "tileLoading"
     ];
 
     ids.forEach((id) => {
@@ -85,6 +90,7 @@
     state.showPropertyLines = state.elements.propertyLinesToggle ? state.elements.propertyLinesToggle.checked : true;
     state.showBuildings = state.elements.buildingToggle ? state.elements.buildingToggle.checked : true;
     state.highlightSelectedBoundary = state.elements.selectedBoundaryToggle ? state.elements.selectedBoundaryToggle.checked : true;
+    state.sunlightMode = state.elements.sunlightMode?.value || state.sunlightMode;
   }
 
   async function loadRentData() {
@@ -124,15 +130,7 @@
       inertia: true
     });
 
-    state.map.createPane("buildingPane");
-    state.map.createPane("propertyPane");
-    state.map.createPane("selectedPane");
-    state.map.getPane("buildingPane").classList.add("leaflet-building-pane");
-    state.map.getPane("propertyPane").classList.add("leaflet-property-pane");
-    state.map.getPane("selectedPane").classList.add("leaflet-selected-pane");
-    state.map.getPane("buildingPane").style.zIndex = 390;
-    state.map.getPane("propertyPane").style.zIndex = 430;
-    state.map.getPane("selectedPane").style.zIndex = 470;
+    createMapPanes();
 
     state.tileLayer = L.tileLayer(config.urls?.osmTiles || "https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "© OpenStreetMap contributors · LINZ boundaries CC BY 4.0",
@@ -147,7 +145,6 @@
       updateWhenZooming: false
     }).addTo(state.map);
 
-    createTileLoadingBadge();
     bindTileEvents();
 
     state.buildingLayer = L.geoJSON(null, {
@@ -168,8 +165,13 @@
       style: () => propertyStyle("selected")
     }).addTo(state.map);
 
-    L.control.zoom({ position: "bottomright" }).addTo(state.map);
+    state.sunlightLayer = new SunlightCanvasLayer({
+      mode: state.sunlightMode,
+      selectedFeature: null,
+      buildingFeatures: []
+    }).addTo(state.map);
 
+    L.control.zoom({ position: "bottomright" }).addTo(state.map);
     addDemoMarkers();
 
     state.map.whenReady(() => {
@@ -178,7 +180,7 @@
       setTimeout(scheduleBoundaryLoad, 260);
       setStatus("Map ready. Loading official LINZ property boundaries for this view…");
       if (config.map?.lockDemoFlatsOnLoad !== false) {
-        setTimeout(lockDemoFlatsToOfficialBoundaries, 500);
+        setTimeout(lockDemoFlatsToOfficialBoundaries, 650);
       }
     });
 
@@ -186,10 +188,27 @@
     state.map.on("moveend zoomend", () => {
       stableInvalidate();
       scheduleBoundaryLoad();
+      state.sunlightLayer?.redrawSoon();
       window.setTimeout(() => setTileLoading(false), 480);
     });
-
     state.map.on("click", handleMapBackgroundClick);
+  }
+
+  function createMapPanes() {
+    state.map.createPane("buildingPane");
+    state.map.createPane("propertyPane");
+    state.map.createPane("sunlightPane");
+    state.map.createPane("selectedPane");
+
+    state.map.getPane("buildingPane").classList.add("leaflet-building-pane");
+    state.map.getPane("propertyPane").classList.add("leaflet-property-pane");
+    state.map.getPane("sunlightPane").classList.add("leaflet-sunlight-pane");
+    state.map.getPane("selectedPane").classList.add("leaflet-selected-pane");
+
+    state.map.getPane("buildingPane").style.zIndex = 390;
+    state.map.getPane("propertyPane").style.zIndex = 430;
+    state.map.getPane("sunlightPane").style.zIndex = 455;
+    state.map.getPane("selectedPane").style.zIndex = 500;
   }
 
   function bindTileEvents() {
@@ -200,9 +219,7 @@
 
     state.tileLayer.on("tileload tileabort", () => {
       state.tileLoadingCount = Math.max(0, state.tileLoadingCount - 1);
-      if (state.tileLoadingCount === 0) {
-        setTimeout(() => setTileLoading(false), 220);
-      }
+      if (state.tileLoadingCount === 0) setTimeout(() => setTileLoading(false), 220);
     });
 
     state.tileLayer.on("load", () => {
@@ -227,15 +244,6 @@
         tile.src = `${retrySrc}?retry=${Date.now()}`;
       }, 450 + attempts * 650);
     });
-  }
-
-  function createTileLoadingBadge() {
-    const badge = document.createElement("div");
-    badge.id = "tileLoading";
-    badge.setAttribute("aria-hidden", "true");
-    badge.textContent = "Loading map tiles";
-    state.elements.map.appendChild(badge);
-    state.elements.tileLoading = badge;
   }
 
   function setTileLoading(isLoading) {
@@ -280,8 +288,10 @@
     state.elements.buildingToggle?.addEventListener("change", () => {
       state.showBuildings = state.elements.buildingToggle.checked;
       if (!state.showBuildings) {
+        state.currentBuildingFeatures = [];
         state.buildingLayer?.clearLayers();
-        setStatus("Building outlines hidden. Property boundaries are still selectable.");
+        state.sunlightLayer?.setBuildingFeatures([]);
+        setStatus("Building outlines hidden. The sunlight heatmap still works, but shadows will be less informed.");
         return;
       }
       scheduleBoundaryLoad();
@@ -291,6 +301,19 @@
       state.highlightSelectedBoundary = state.elements.selectedBoundaryToggle.checked;
       refreshSelectedBoundary();
       setStatus(state.highlightSelectedBoundary ? "Selected-property outline enabled." : "Selected-property outline hidden.");
+    });
+
+    state.elements.sunlightMode?.addEventListener("change", () => {
+      state.sunlightMode = state.elements.sunlightMode.value;
+      state.sunlightLayer?.setMode(state.sunlightMode);
+      updateSunlightReadout();
+      if (state.sunlightMode !== "off" && !state.selected) {
+        setStatus("Sunlight mode selected. Click a property first so Flatwise knows where to draw the estimate.");
+      } else if (state.sunlightMode !== "off") {
+        setStatus(`${sunlightModeLabel(state.sunlightMode)} enabled for the selected property.`);
+      } else {
+        setStatus("Sunlight overlay turned off.");
+      }
     });
 
     state.elements.searchForm?.addEventListener("submit", (event) => {
@@ -317,6 +340,7 @@
   function scrollToReviewComposer(options = {}) {
     const target = state.elements.reviewComposer || state.elements.detailsContent || document.querySelector(".details-panel");
     if (!target) return;
+
     const delay = Number.isFinite(options.delay) ? options.delay : 160;
     window.setTimeout(() => {
       target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -378,7 +402,7 @@
 
       scrollToMap();
       state.map.flyTo([lat, lon], Math.max(state.map.getZoom(), 18), { duration: 0.85 });
-      setStatus(`Moved to ${place.display_name || query}. Click the exact property to select it.`);
+      setStatus(`Moved to ${place.display_name || query}. Looking up the property under that point…`);
       window.setTimeout(() => lookupAndSelectPropertyAt(L.latLng(lat, lon), { source: "search", focus: false }), 950);
     } catch (error) {
       console.warn("Flatwise search failed:", error);
@@ -405,6 +429,7 @@
 
   function addDemoMarker(flat) {
     if (!state.map || !Number.isFinite(Number(flat.lat)) || !Number.isFinite(Number(flat.lng))) return;
+
     const safeFlat = normaliseDemoFlat(flat);
     const marker = L.marker([safeFlat.lat, safeFlat.lng], {
       title: safeFlat.title,
@@ -475,7 +500,7 @@
     const display = Number.isFinite(value) ? value.toFixed(1) : "—";
 
     return L.divIcon({
-      className: `demo-marker ${ratingClass(value)} ${flat.lockedToLinz ? "is-locked" : ""}`,
+      className: `demo-marker ${ratingClass(value)}`,
       html: `<span>${escapeHtml(display)}</span>`,
       iconSize: [50, 50],
       iconAnchor: [25, 46],
@@ -491,9 +516,9 @@
     const lockText = flat.lockedToLinz ? "Official LINZ property boundary locked" : "Boundary lock pending";
 
     return `
-      <strong>${escapeHtml(flat.title)}</strong>
-      <p>${escapeHtml(flat.note)}</p>
-      <p><strong>${escapeHtml(score)} / ${ratingScale}</strong></p>
+      <strong>${escapeHtml(flat.title)}</strong><br />
+      <span>${escapeHtml(flat.note)}</span><br />
+      <strong>${escapeHtml(score)} / ${ratingScale}</strong><br />
       <small>${escapeHtml(lockText)}</small>
     `;
   }
@@ -531,6 +556,8 @@
     if (zoom < parcelZoom) {
       state.propertyLayer.clearLayers();
       state.buildingLayer.clearLayers();
+      state.currentBuildingFeatures = [];
+      state.sunlightLayer?.setBuildingFeatures([]);
       setStatus(`Zoom to level ${parcelZoom} or closer to load official LINZ property boundaries.`);
       return;
     }
@@ -539,6 +566,8 @@
     if (isQueryTooLarge(bounds)) {
       state.propertyLayer.clearLayers();
       state.buildingLayer.clearLayers();
+      state.currentBuildingFeatures = [];
+      state.sunlightLayer?.setBuildingFeatures([]);
       setStatus("Move closer before loading property boundaries. This prevents oversized LINZ requests.");
       return;
     }
@@ -559,7 +588,7 @@
     }
 
     if (state.showBuildings && zoom >= buildingZoom) {
-      await loadArcGisGeoJson({
+      const buildings = await loadArcGisGeoJson({
         layerName: "building",
         url: config.urls?.buildingOutlines,
         bounds,
@@ -569,8 +598,12 @@
         outFields: config.linz?.buildingOutFields || "*",
         resultRecordCount: 1000
       });
+      state.currentBuildingFeatures = buildings?.features || [];
+      state.sunlightLayer?.setBuildingFeatures(state.currentBuildingFeatures);
     } else {
       state.buildingLayer.clearLayers();
+      state.currentBuildingFeatures = [];
+      state.sunlightLayer?.setBuildingFeatures([]);
     }
   }
 
@@ -586,24 +619,17 @@
       return cached;
     }
 
-    if (state[abortKey]) {
-      state[abortKey].abort();
-    }
-
+    if (state[abortKey]) state[abortKey].abort();
     const controller = new AbortController();
     state[abortKey] = controller;
 
     try {
       const requestUrl = buildArcGisEnvelopeQueryUrl(url, bounds, outFields, layerName, resultRecordCount);
       const response = await fetch(requestUrl, { signal: controller.signal });
-      if (!response.ok) {
-        throw new Error(`${layerName} request failed with ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`${layerName} request failed with ${response.status}`);
 
       const geoJson = await response.json();
-      if (!geoJson || !Array.isArray(geoJson.features)) {
-        throw new Error(`${layerName} response was not GeoJSON`);
-      }
+      if (!geoJson || !Array.isArray(geoJson.features)) throw new Error(`${layerName} response was not GeoJSON`);
 
       cache.set(cacheKey, geoJson);
       trimCache(cache, 16);
@@ -613,9 +639,7 @@
     } catch (error) {
       if (error.name === "AbortError") return null;
       console.warn(`Flatwise ${layerName} load failed:`, error);
-      if (layerName === "property") {
-        setStatus("LINZ property boundaries could not load right now. Click the map again or try a smaller view.");
-      }
+      if (layerName === "property") setStatus("LINZ property boundaries could not load right now. Click the map again or try a smaller view.");
       return null;
     }
   }
@@ -699,10 +723,7 @@
   function handlePropertyHover(layer) {
     if (!state.showPropertyLines) return;
 
-    if (state.activePropertyLayer && state.activePropertyLayer !== layer) {
-      handlePropertyOut(state.activePropertyLayer);
-    }
-
+    if (state.activePropertyLayer && state.activePropertyLayer !== layer) handlePropertyOut(state.activePropertyLayer);
     state.activePropertyLayer = layer;
     layer.setStyle(propertyStyle("hover"));
     layer.bringToFront();
@@ -712,6 +733,7 @@
 
   function handlePropertyOut(layer) {
     if (!layer) return;
+
     const selectedFeature = state.selected?.feature || state.selected?.boundaryFeature;
     if (selectedFeature && sameProperty(layer.feature, selectedFeature)) {
       layer.setStyle(propertyStyle("muted"));
@@ -719,10 +741,7 @@
       layer.setStyle(propertyStyle("normal"));
     }
 
-    if (state.activePropertyLayer === layer) {
-      state.activePropertyLayer = null;
-    }
-
+    if (state.activePropertyLayer === layer) state.activePropertyLayer = null;
     state.elements.map?.classList.remove("is-hovering-property");
   }
 
@@ -751,704 +770,460 @@
       setSelectedMarker(centre);
     }
 
-    if (layer) {
-      layer.setStyle(propertyStyle("muted"));
-    }
+    if (layer) layer.setStyle(propertyStyle("muted"));
 
     renderSelectedDetails();
+    state.sunlightLayer?.setSelectedFeature(feature);
+    updateSunlightReadout();
+    setStatus("Property selected. Sunlight modes now draw directly over this selected boundary.");
 
-    if (options.scroll) scrollToReviewComposer({ focusNote: false });
-    setStatus("Official LINZ property selected. The review form is ready below.");
-  }
-
-  async function selectDemoFlat(flat, marker) {
-    marker?.openPopup();
-
-    if (!flat.boundaryFeature && config.map?.lockDemoFlatsOnLoad !== false) {
-      setStatus("Checking the official LINZ boundary for this demo flat…");
-      const feature = await queryPropertyAtPoint(L.latLng(flat.lat, flat.lng), { allowTinyEnvelope: true });
-      if (feature) {
-        const centre = getFeatureCentre(feature) || L.latLng(flat.lat, flat.lng);
-        flat.lockedToLinz = true;
-        flat.lockedPropertyId = propertyId(feature);
-        flat.boundaryFeature = feature;
-        flat.lat = centre.lat;
-        flat.lng = centre.lng;
-        marker?.setLatLng(centre);
-        updateDemoMarker(flat);
-      }
-    }
-
-    state.selected = targetFromDemoFlat(flat);
-    setSelectedMarker(state.selected.centre);
-    refreshSelectedBoundary();
-    renderSelectedDetails();
-
-    const feature = state.selected.boundaryFeature;
-    if (feature) {
-      const bounds = getFeatureBounds(feature);
-      if (bounds?.isValid()) {
-        state.map.fitBounds(bounds.pad(0.34), { maxZoom: 19, animate: true, duration: 0.65 });
-      } else {
-        state.map.flyTo(state.selected.centre, Math.max(state.map.getZoom(), 18), { duration: 0.65 });
-      }
-      setStatus(flat.lockedToLinz ? "Demo flat selected and locked to its official LINZ property boundary." : "Demo flat selected with boundary geometry.");
-    } else {
-      state.map.flyTo(state.selected.centre, Math.max(state.map.getZoom(), 18), { duration: 0.65 });
-      setStatus("Demo flat selected. LINZ did not return a boundary for this marker yet.");
-    }
-
-    scrollToReviewComposer({ focusNote: false });
+    if (options.scroll) scrollToReviewComposer({ delay: 520 });
   }
 
   async function handleMapBackgroundClick(event) {
-    if (!event.latlng) return;
-    await lookupAndSelectPropertyAt(event.latlng, { source: "map-click", focus: true });
+    if (!event?.latlng) return;
+    await lookupAndSelectPropertyAt(event.latlng, { source: "map", focus: true });
   }
 
-  async function lookupAndSelectPropertyAt(latLng, options = {}) {
-    setStatus("Looking up the exact official LINZ property under your click…");
+  async function lookupAndSelectPropertyAt(latlng, options = {}) {
+    if (!latlng) return;
 
-    const feature = await queryPropertyAtPoint(latLng, { allowTinyEnvelope: true });
-    if (!feature) {
-      setStatus("No LINZ property boundary was found exactly under that point. Try clicking inside the property shape or zooming closer.");
-      return null;
+    const cacheKey = `${latlng.lat.toFixed(6)},${latlng.lng.toFixed(6)}`;
+    if (state.pointCache.has(cacheKey)) {
+      const cached = state.pointCache.get(cacheKey);
+      if (cached) selectPropertyFeature(cached, null, { focus: options.focus, scroll: options.source === "map" });
+      return;
     }
 
-    selectPropertyFeature(feature, null, { focus: options.focus !== false, scroll: true });
-    return feature;
+    setStatus("Looking up the property under your cursor using LINZ boundaries…");
+
+    try {
+      const feature = await queryPropertyAtPoint(latlng, { allowTinyEnvelope: true });
+      state.pointCache.set(cacheKey, feature || null);
+      trimCache(state.pointCache, 40);
+
+      if (!feature) {
+        setStatus("No property boundary was returned for that point. Try a nearby point or zoom closer.");
+        return;
+      }
+
+      selectPropertyFeature(feature, null, { focus: options.focus !== false, scroll: options.source === "map" });
+    } catch (error) {
+      console.warn("Point property lookup failed:", error);
+      setStatus("Could not complete the property lookup. Try clicking the visible polygon outline instead.");
+    }
   }
 
-  async function queryPropertyAtPoint(latLng, options = {}) {
-    if (!latLng || !Number.isFinite(latLng.lat) || !Number.isFinite(latLng.lng)) return null;
+  async function queryPropertyAtPoint(latlng, options = {}) {
+    const radius = options.allowTinyEnvelope ? config.map?.pointLookupRadiusDegrees || 0.00028 : 0.00015;
+    const bounds = L.latLngBounds([
+      [latlng.lat - radius, latlng.lng - radius],
+      [latlng.lat + radius, latlng.lng + radius]
+    ]);
 
-    const cacheKey = `${latLng.lat.toFixed(7)},${latLng.lng.toFixed(7)}`;
-    if (state.pointCache.has(cacheKey)) return state.pointCache.get(cacheKey);
+    const primary = await queryFirstFeatureFromUrl(config.urls?.propertyBoundaries, bounds, "point-property");
+    if (primary) return primary;
+
+    return queryFirstFeatureFromUrl(config.urls?.primaryParcelsFallback, bounds, "point-parcel");
+  }
+
+  async function queryFirstFeatureFromUrl(url, bounds, layerName) {
+    if (!url) return null;
 
     if (state.clickAbortController) state.clickAbortController.abort();
     const controller = new AbortController();
     state.clickAbortController = controller;
 
-    try {
-      let geoJson = await runPointPropertyQuery(latLng, controller.signal);
-      if ((!geoJson || !geoJson.features?.length) && options.allowTinyEnvelope) {
-        geoJson = await runTinyEnvelopePropertyQuery(latLng, controller.signal);
-      }
+    const requestUrl = buildArcGisEnvelopeQueryUrl(url, bounds, config.linz?.propertyOutFields || "*", layerName, 8);
+    const response = await fetch(requestUrl, { signal: controller.signal });
+    if (!response.ok) throw new Error(`Point lookup failed with ${response.status}`);
 
-      const feature = chooseBestFeatureForPoint(geoJson?.features || [], latLng);
-      state.pointCache.set(cacheKey, feature || null);
-      trimCache(state.pointCache, 60);
-      return feature || null;
-    } catch (error) {
-      if (error.name === "AbortError") return null;
-      console.warn("LINZ point lookup failed:", error);
-      setStatus("Could not complete the LINZ point lookup. Try again in a moment.");
-      return null;
-    }
+    const geoJson = await response.json();
+    return Array.isArray(geoJson.features) && geoJson.features.length ? geoJson.features[0] : null;
   }
 
-  async function runPointPropertyQuery(latLng, signal) {
-    const geometry = {
-      x: latLng.lng,
-      y: latLng.lat,
-      spatialReference: { wkid: 4326 }
+  function selectDemoFlat(flat, marker) {
+    const target = targetFromDemoFlat(flat);
+    state.selected = {
+      ...target,
+      type: "demo",
+      centre: marker.getLatLng(),
+      feature: target.boundaryFeature,
+      boundaryFeature: target.boundaryFeature,
+      demoFlat: flat
     };
 
-    const url = new URL(config.urls?.propertyBoundaries);
-    url.searchParams.set("f", "geojson");
-    url.searchParams.set("where", "1=1");
-    url.searchParams.set("outFields", config.linz?.propertyOutFields || "*");
-    url.searchParams.set("returnGeometry", "true");
-    url.searchParams.set("spatialRel", "esriSpatialRelIntersects");
-    url.searchParams.set("geometryType", "esriGeometryPoint");
-    url.searchParams.set("inSR", "4326");
-    url.searchParams.set("outSR", "4326");
-    url.searchParams.set("geometry", JSON.stringify(geometry));
-    url.searchParams.set("resultRecordCount", "12");
-    url.searchParams.set("geometryPrecision", "7");
-
-    return fetchJson(url.toString(), 9000, signal);
-  }
-
-  async function runTinyEnvelopePropertyQuery(latLng, signal) {
-    const radius = config.map?.pointLookupRadiusDegrees || 0.00028;
-    const bounds = L.latLngBounds(
-      [latLng.lat - radius, latLng.lng - radius],
-      [latLng.lat + radius, latLng.lng + radius]
-    );
-
-    const url = buildArcGisEnvelopeQueryUrl(
-      config.urls?.propertyBoundaries,
-      bounds,
-      config.linz?.propertyOutFields || "*",
-      "property",
-      24
-    );
-
-    return fetchJson(url, 9000, signal);
-  }
-
-  function chooseBestFeatureForPoint(features, latLng) {
-    if (!Array.isArray(features) || features.length === 0) return null;
-
-    const containing = features.filter((feature) => featureContainsLatLng(feature, latLng));
-    const candidates = containing.length ? containing : features;
-
-    return candidates.slice().sort((a, b) => {
-      const areaA = propertyArea(a) || Infinity;
-      const areaB = propertyArea(b) || Infinity;
-      if (areaA !== areaB) return areaA - areaB;
-      const centreA = getFeatureCentre(a);
-      const centreB = getFeatureCentre(b);
-      const distA = centreA ? distanceMeters(latLng.lat, latLng.lng, centreA.lat, centreA.lng) : Infinity;
-      const distB = centreB ? distanceMeters(latLng.lat, latLng.lng, centreB.lat, centreB.lng) : Infinity;
-      return distA - distB;
-    })[0];
-  }
-
-  function findDemoFlatForProperty(propertyIdValue) {
-    for (const entry of state.demoMarkers.values()) {
-      if (entry.flat?.lockedPropertyId && entry.flat.lockedPropertyId === propertyIdValue) {
-        return entry.flat;
-      }
+    setSelectedMarker(marker.getLatLng());
+    refreshSelectedBoundary();
+    if (target.boundaryFeature) {
+      const bounds = getFeatureBounds(target.boundaryFeature);
+      if (bounds?.isValid()) state.map.fitBounds(bounds.pad(0.34), { maxZoom: 19, animate: true, duration: 0.65 });
+      state.sunlightLayer?.setSelectedFeature(target.boundaryFeature);
+    } else {
+      state.map.flyTo(marker.getLatLng(), Math.max(state.map.getZoom(), 18), { duration: 0.65 });
+      state.sunlightLayer?.setSelectedFeature(null);
     }
-    return null;
+
+    renderSelectedDetails();
+    updateSunlightReadout();
+    setStatus(`${flat.title} selected. Review form is ready.`);
+    scrollToReviewComposer({ delay: 520 });
   }
 
   function refreshSelectedBoundary() {
-    state.selectedBoundaryLayer?.clearLayers();
-    if (!state.highlightSelectedBoundary || !state.selected) return;
+    state.selectedBoundaryLayer.clearLayers();
+    if (!state.highlightSelectedBoundary) return;
 
-    const feature = state.selected.boundaryFeature || state.selected.feature;
-    if (feature) {
-      state.selectedBoundaryLayer.addData(feature);
-    }
+    const feature = state.selected?.boundaryFeature || state.selected?.feature;
+    if (feature) state.selectedBoundaryLayer.addData(feature);
   }
 
-  function setSelectedMarker(latLng) {
-    if (!latLng) return;
-    if (state.selectedMarker) state.selectedMarker.remove();
+  function setSelectedMarker(latlng) {
+    if (!latlng) return;
 
-    state.selectedMarker = L.marker(latLng, {
-      icon: L.divIcon({
-        className: "selected-marker",
-        html: "",
-        iconSize: [40, 40],
-        iconAnchor: [20, 35]
-      }),
-      interactive: false,
-      zIndexOffset: 1000
-    }).addTo(state.map);
+    if (!state.selectedMarker) {
+      state.selectedMarker = L.marker(latlng, {
+        icon: L.divIcon({ className: "selected-marker", html: "", iconSize: [40, 40], iconAnchor: [20, 38] }),
+        interactive: false
+      }).addTo(state.map);
+      return;
+    }
+
+    state.selectedMarker.setLatLng(latlng);
   }
 
   function renderEmptyDetails() {
     state.elements.detailsEmpty?.classList.remove("hidden");
     state.elements.detailsContent?.classList.add("hidden");
-    if (state.elements.reviewTargetLabel) {
-      state.elements.reviewTargetLabel.textContent = "No property selected";
-    }
+    if (state.elements.reviewTargetLabel) state.elements.reviewTargetLabel.textContent = "No property selected";
+    renderPhotoPlaceholder("Select a property", "Street View preview will appear here when configured.");
   }
 
   function renderSelectedDetails() {
-    if (!state.selected) {
+    const selected = state.selected;
+    if (!selected) {
       renderEmptyDetails();
       return;
     }
 
-    const target = state.selected;
-    const centre = target.centre || getFeatureCentre(target.boundaryFeature || target.feature);
-    const rent = findRentArea(centre);
-    const reviews = getReviewsForTarget(target);
-    const average = calculateOverall(reviews);
-
     state.elements.detailsEmpty?.classList.add("hidden");
     state.elements.detailsContent?.classList.remove("hidden");
 
-    setText("selectedType", target.type === "demo" ? "Demo flat locked to LINZ" : "Official LINZ property");
-    setText("selectedTitle", target.title || "Selected property boundary");
-    setText("selectedSuburb", rent?.name || target.feature?.properties?.territorial_authority || "Wellington area");
-    setText("boundarySource", boundarySourceText(target));
-    setText("boundaryDescription", boundaryDescriptionText(target));
-    setRatingPill(state.elements.selectedScore, average);
+    const reviews = getReviewsForTarget(selected);
+    const average = calculateOverall(reviews);
+    const rentArea = findNearestRentArea(selected.centre);
+    const boundaryFeature = selected.boundaryFeature || selected.feature;
 
-    if (rent) {
-      setText("rentBenchmark", rent.weeklyRent || "Local guide");
-      setText("rentDescription", rent.description || "Area-based rent guidance loaded from the local demo data file.");
-    } else {
-      setText("rentBenchmark", "No local data");
-      setText("rentDescription", "No demo rent guide is currently available for this selected area.");
-    }
+    setText("selectedType", selected.type === "demo" ? "Demo flat" : "Selected property");
+    setText("selectedTitle", selected.title || propertyTitle(boundaryFeature) || "Selected property");
+    setText("selectedSuburb", rentArea?.name || selectedSuburbFromFeature(boundaryFeature) || "Wellington");
 
-    renderPhoto(centre, target.title);
+    const scoreText = Number.isFinite(average) ? `${average.toFixed(1)} / ${ratingScale}` : "No rating";
+    state.elements.selectedScore.textContent = scoreText;
+    state.elements.selectedScore.className = `rating-pill ${ratingClass(average)}`;
+
+    setText("rentBenchmark", rentArea?.weeklyRent || "No local data");
+    setText("rentDescription", rentArea?.description || "No local rent guide is connected for this exact area yet.");
+
+    const official = Boolean(boundaryFeature && !boundaryFeature.properties?._flatwise_demo_boundary);
+    setText("boundarySource", official ? "Official LINZ boundary" : "Demo boundary");
+    setText("boundaryDescription", official ? "This property outline came from the LINZ boundary service and is used for the selected review target." : "This is fallback demo geometry used when the live boundary service is unavailable.");
+
+    setText("reviewCount", String(reviews.length));
+    setText("reviewTargetLabel", selected.title || propertyTitle(boundaryFeature) || "Selected property");
+
     renderRatingBreakdown(reviews);
     renderReviewList(reviews);
-
-    if (state.elements.reviewTargetLabel) {
-      state.elements.reviewTargetLabel.textContent = target.title || "Selected property boundary";
-    }
-  }
-
-  function boundarySourceText(target) {
-    if (target.type === "demo" && target.boundaryFeature) return "LINZ NZ Property Boundaries + demo review";
-    if (target.boundaryFeature || target.feature) return "LINZ NZ Property Boundaries";
-    return "Map location";
-  }
-
-  function boundaryDescriptionText(target) {
-    const feature = target.boundaryFeature || target.feature;
-    if (!feature) return "No official boundary is attached yet. Click the map again or zoom closer.";
-
-    const description = boundaryDescription(feature);
-    if (target.type === "demo") {
-      return `This demo flat is snapped to the official LINZ property polygon. ${description}`;
-    }
-    return description;
-  }
-
-  async function renderPhoto(centre, title) {
-    if (!state.elements.photoFrame) return;
-
-    const requestId = ++state.streetViewRequestId;
-    const streetViewSettings = getStreetViewSettings();
-
-    if (!centre) {
-      renderStreetViewPlaceholder(title, "Select a property first so Flatwise can look for nearby Street View imagery.");
-      return;
-    }
-
-    if (!streetViewSettings.enabled) {
-      renderStreetViewPlaceholder(title, "Street imagery is disabled. Enable Street View and add a restricted Google key in js/config.js.");
-      return;
-    }
-
-    if (!streetViewSettings.key || streetViewSettings.key === "YOUR_RESTRICTED_KEY" || streetViewSettings.key.includes("PASTE_")) {
-      renderStreetViewPlaceholder(title, "Street imagery needs a restricted Google Street View Static API key in js/config.js.");
-      return;
-    }
-
-    renderStreetViewLoading(title);
-
-    try {
-      const metadata = await getStreetViewMetadata(centre.lat, centre.lng);
-      if (requestId !== state.streetViewRequestId) return;
-
-      if (!metadata || metadata.status !== "OK" || !metadata.pano_id) {
-        const message = metadata?.status
-          ? `Google Street View returned ${metadata.status} for this selected property.`
-          : "Google Street View did not return imagery for this selected property.";
-        renderStreetViewPlaceholder(title, message);
-        return;
-      }
-
-      const panoLocation = metadata.location || {};
-      const heading = Number.isFinite(panoLocation.lat) && Number.isFinite(panoLocation.lng)
-        ? calculateHeading(panoLocation.lat, panoLocation.lng, centre.lat, centre.lng)
-        : streetViewSettings.placeholderHeading;
-      const imageUrl = buildStreetViewImageUrl(metadata.pano_id, heading);
-
-      state.elements.photoFrame.innerHTML = "";
-      const img = document.createElement("img");
-      img.src = imageUrl;
-      img.alt = `Google Street View near ${title || "selected property"}`;
-      img.loading = "lazy";
-      img.decoding = "async";
-      img.addEventListener("error", () => {
-        if (requestId === state.streetViewRequestId) {
-          renderStreetViewPlaceholder(title, "Street View metadata exists, but the image could not load. Check the API key restrictions and quota.");
-        }
-      });
-
-      const caption = document.createElement("div");
-      caption.className = "streetview-meta";
-      const date = metadata.date ? ` · ${escapeHtml(metadata.date)}` : "";
-      caption.innerHTML = `Google Street View${date}<br>${escapeHtml(metadata.copyright || "© Google")}`;
-
-      state.elements.photoFrame.appendChild(img);
-      state.elements.photoFrame.appendChild(caption);
-    } catch (error) {
-      if (requestId !== state.streetViewRequestId) return;
-      console.warn("Street View metadata lookup failed:", error);
-      renderStreetViewPlaceholder(title, "Street View could not be checked. Confirm the key allows Street View Static API and this website referrer.");
-    }
-  }
-
-  function getStreetViewSettings() {
-    const streetView = config.streetView || {};
-    return {
-      enabled: Boolean(config.enableStreetView || streetView.enableStreetView || streetView.enableGoogleStreetView),
-      key: config.googleStreetViewApiKey || streetView.googleStreetViewApiKey || "",
-      radius: Number.isFinite(streetView.searchRadiusMeters) ? streetView.searchRadiusMeters : 80,
-      imageSize: streetView.imageSize || "640x360",
-      fov: Number.isFinite(streetView.fov) ? streetView.fov : 75,
-      pitch: Number.isFinite(streetView.pitch) ? streetView.pitch : 0,
-      placeholderHeading: Number.isFinite(streetView.placeholderHeading) ? streetView.placeholderHeading : 0
-    };
-  }
-
-  async function getStreetViewMetadata(lat, lng) {
-    const streetViewSettings = getStreetViewSettings();
-    const url = new URL("https://maps.googleapis.com/maps/api/streetview/metadata");
-    url.searchParams.set("location", `${lat},${lng}`);
-    url.searchParams.set("radius", String(streetViewSettings.radius));
-    url.searchParams.set("key", streetViewSettings.key);
-
-    const response = await fetch(url.toString(), { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`Street View metadata request failed with HTTP ${response.status}`);
-    }
-    return await response.json();
-  }
-
-  function buildStreetViewImageUrl(panoId, heading) {
-    const streetViewSettings = getStreetViewSettings();
-    const url = new URL("https://maps.googleapis.com/maps/api/streetview");
-    url.searchParams.set("size", streetViewSettings.imageSize);
-    url.searchParams.set("pano", panoId);
-    url.searchParams.set("heading", Number(heading || 0).toFixed(0));
-    url.searchParams.set("pitch", String(streetViewSettings.pitch));
-    url.searchParams.set("fov", String(streetViewSettings.fov));
-    url.searchParams.set("key", streetViewSettings.key);
-    return url.toString();
-  }
-
-  function renderStreetViewLoading(title) {
-    state.elements.photoFrame.innerHTML = `
-      <div class="photo-placeholder loading">
-        <span>⌕</span>
-        <strong>${escapeHtml(title || "Selected property")}</strong>
-        <small>Checking Google Street View metadata before loading an image…</small>
-      </div>
-    `;
-  }
-
-  function renderStreetViewPlaceholder(title, message) {
-    state.elements.photoFrame.innerHTML = `
-      <div class="photo-placeholder">
-        <span>⌂</span>
-        <strong>${escapeHtml(title || "Selected property")}</strong>
-        <small>${escapeHtml(message)}</small>
-      </div>
-    `;
-  }
-
-  function calculateHeading(fromLat, fromLng, toLat, toLng) {
-    const fromLatRad = degreesToRadians(fromLat);
-    const toLatRad = degreesToRadians(toLat);
-    const deltaLngRad = degreesToRadians(toLng - fromLng);
-    const y = Math.sin(deltaLngRad) * Math.cos(toLatRad);
-    const x = Math.cos(fromLatRad) * Math.sin(toLatRad) - Math.sin(fromLatRad) * Math.cos(toLatRad) * Math.cos(deltaLngRad);
-    return (radiansToDegrees(Math.atan2(y, x)) + 360) % 360;
-  }
-
-  function degreesToRadians(degrees) {
-    return (Number(degrees) * Math.PI) / 180;
-  }
-
-  function radiansToDegrees(radians) {
-    return (Number(radians) * 180) / Math.PI;
+    renderStreetView(selected);
   }
 
   function renderRatingBreakdown(reviews) {
-    if (!state.elements.ratingBreakdown) return;
-    state.elements.ratingBreakdown.innerHTML = "";
+    const wrap = state.elements.ratingBreakdown;
+    if (!wrap) return;
 
-    reviewFields.forEach((field) => {
-      const value = calculateFieldAverage(reviews, field.key);
-      const display = Number.isFinite(value) ? value.toFixed(1) : "—";
-      const width = Number.isFinite(value) ? `${Math.max(3, (value / ratingScale) * 100)}%` : "0%";
-      const row = document.createElement("div");
-      row.className = "breakdown-row";
-      row.innerHTML = `
-        <div><span>${escapeHtml(field.label)}</span><strong>${display}</strong></div>
-        <i><b style="width:${width}"></b></i>
-      `;
-      state.elements.ratingBreakdown.appendChild(row);
-    });
-  }
-
-  function renderReviewList(reviews) {
-    if (!state.elements.reviewList) return;
-    state.elements.reviewList.innerHTML = "";
-    setText("reviewCount", String(reviews.length));
-
-    if (reviews.length === 0) {
-      const empty = document.createElement("article");
-      empty.className = "review-card";
-      empty.innerHTML = `<p>No tenant notes saved yet. Add a local review to test the prototype flow.</p>`;
-      state.elements.reviewList.appendChild(empty);
+    if (!reviews.length) {
+      wrap.innerHTML = `<p class="fine-print">No reviews yet. Your saved review will create the first rating breakdown for this property.</p>`;
       return;
     }
 
-    reviews.slice().reverse().forEach((review) => {
-      const card = document.createElement("article");
-      card.className = `review-card ${review.seed ? "seed-review" : ""}`;
-      const score = calculateReviewScore(review);
-      const date = review.createdAt ? new Date(review.createdAt).toLocaleDateString() : "Demo review";
-      const metaParts = [];
-      if (review.recommend) metaParts.push(`Recommend: ${escapeHtml(review.recommend)}`);
-      if (review.weeklyRent) metaParts.push(`Rent: ${escapeHtml(review.weeklyRent)}`);
-      if (review.tenancyPeriod) metaParts.push(`Period: ${escapeHtml(review.tenancyPeriod)}`);
-      const meta = metaParts.join(" · ");
-
-      card.innerHTML = `
-        <header>
-          <strong>${Number.isFinite(score) ? score.toFixed(1) : "—"} / ${ratingScale}</strong>
-          <span>${escapeHtml(date)}${review.seed ? " · demo" : ""}</span>
-        </header>
-        ${meta ? `<p class="review-meta">${meta}</p>` : ""}
-        <p>${escapeHtml(review.note || "No note added.")}</p>
+    const rows = reviewFields.map((field) => {
+      const value = averageForField(reviews, field.key);
+      const width = Number.isFinite(value) ? Math.max(0, Math.min(100, (value / ratingScale) * 100)) : 0;
+      return `
+        <div class="breakdown-row">
+          <div><span>${escapeHtml(field.label)}</span><strong>${Number.isFinite(value) ? value.toFixed(1) : "—"}</strong></div>
+          <i><b style="width:${width}%"></b></i>
+        </div>
       `;
-      state.elements.reviewList.appendChild(card);
+    }).join("");
+
+    wrap.innerHTML = rows;
+  }
+
+  function renderReviewList(reviews) {
+    const wrap = state.elements.reviewList;
+    if (!wrap) return;
+
+    if (!reviews.length) {
+      wrap.innerHTML = `<p class="fine-print">No tenant notes saved for this property yet.</p>`;
+      return;
+    }
+
+    wrap.innerHTML = reviews.slice().reverse().map((review) => {
+      const created = review.createdAt ? new Date(review.createdAt) : null;
+      const dateText = created && !Number.isNaN(created.valueOf()) ? created.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "Saved review";
+      const overall = calculateOverall([review]);
+      return `
+        <article class="review-card">
+          <header><strong>${escapeHtml(review.nickname || "Tenant review")}</strong><span>${Number.isFinite(overall) ? overall.toFixed(1) : "—"} / ${ratingScale}</span></header>
+          <p class="review-meta">${escapeHtml(dateText)} · ${escapeHtml(review.tenancyPeriod || "Period not supplied")} · ${escapeHtml(review.weeklyRent || "Rent not supplied")} · Recommend: ${escapeHtml(review.recommend || "Prefer not to say")}</p>
+          <p>${escapeHtml(review.note || "No written note added.")}</p>
+        </article>
+      `;
+    }).join("");
+  }
+
+  function renderStreetView(selected) {
+    const centre = selected?.centre;
+    if (!centre) {
+      renderPhotoPlaceholder("No location", "Select a property to show a location preview.");
+      return;
+    }
+
+    const streetViewEnabled = Boolean(config.enableStreetView && config.googleStreetViewApiKey && config.streetView?.enableGoogleStreetView !== false);
+    if (!streetViewEnabled) {
+      renderPhotoPlaceholder("Street View not connected", "Add your Google Street View browser API key in js/config.js to enable road-view images.");
+      return;
+    }
+
+    const requestId = ++state.streetViewRequestId;
+    renderPhotoPlaceholder("Checking Street View", "Looking for a nearby panorama before loading an image.");
+
+    const key = config.googleStreetViewApiKey;
+    const radius = config.streetView?.searchRadiusMeters || 80;
+    const metadataUrl = new URL("https://maps.googleapis.com/maps/api/streetview/metadata");
+    metadataUrl.searchParams.set("location", `${centre.lat},${centre.lng}`);
+    metadataUrl.searchParams.set("radius", String(radius));
+    metadataUrl.searchParams.set("key", key);
+
+    fetchJson(metadataUrl.toString(), 7000).then((metadata) => {
+      if (requestId !== state.streetViewRequestId) return;
+      if (!metadata || metadata.status !== "OK") {
+        renderPhotoPlaceholder("No Street View found", "Google did not return a nearby road panorama for this selected point.");
+        return;
+      }
+
+      const imageUrl = new URL("https://maps.googleapis.com/maps/api/streetview");
+      imageUrl.searchParams.set("size", config.streetView?.imageSize || "640x360");
+      imageUrl.searchParams.set("location", `${centre.lat},${centre.lng}`);
+      imageUrl.searchParams.set("radius", String(radius));
+      imageUrl.searchParams.set("fov", String(config.streetView?.fov || 75));
+      imageUrl.searchParams.set("pitch", String(config.streetView?.pitch || 0));
+      imageUrl.searchParams.set("heading", String(config.streetView?.placeholderHeading || 0));
+      imageUrl.searchParams.set("key", key);
+
+      state.elements.photoFrame.innerHTML = `
+        <img src="${escapeAttribute(imageUrl.toString())}" alt="Google Street View preview near selected property" />
+        <span class="streetview-meta">Street View metadata checked · ${escapeHtml(metadata.date || "date unknown")}</span>
+      `;
+    }).catch((error) => {
+      if (requestId !== state.streetViewRequestId) return;
+      console.warn("Street View metadata failed:", error);
+      renderPhotoPlaceholder("Street View check failed", "The property review tools still work without the image preview.");
     });
   }
 
+  function renderPhotoPlaceholder(title, text) {
+    const frame = state.elements.photoFrame;
+    if (!frame) return;
+    frame.innerHTML = `
+      <div class="photo-placeholder">
+        <span>⌂</span>
+        <strong>${escapeHtml(title)}</strong>
+        <small>${escapeHtml(text)}</small>
+      </div>
+    `;
+  }
+
   function createRatingInputs() {
-    if (!state.elements.ratingInputs) return;
-    state.elements.ratingInputs.innerHTML = "";
+    const wrap = state.elements.ratingInputs;
+    if (!wrap) return;
+
+    wrap.innerHTML = reviewFields.map((field) => `
+      <div class="rating-field">
+        <label for="rating-${escapeAttribute(field.key)}">
+          <span>${escapeHtml(field.label)}</span>
+          <output id="output-${escapeAttribute(field.key)}">${defaultRating}</output>
+        </label>
+        <input id="rating-${escapeAttribute(field.key)}" name="${escapeAttribute(field.key)}" type="range" min="1" max="${ratingScale}" value="${defaultRating}" step="1" />
+        <small>${escapeHtml(field.hint)}</small>
+      </div>
+    `).join("");
 
     reviewFields.forEach((field) => {
-      const wrapper = document.createElement("div");
-      wrapper.className = "rating-field";
-      wrapper.innerHTML = `
-        <label for="rating-${escapeHtml(field.key)}">
-          <span>${escapeHtml(field.label)}</span>
-          <output id="output-${escapeHtml(field.key)}">${defaultRating}</output>
-        </label>
-        <input id="rating-${escapeHtml(field.key)}" type="range" min="1" max="${ratingScale}" step="1" value="${defaultRating}" />
-        <small>${escapeHtml(field.hint)}</small>
-      `;
-
-      const input = wrapper.querySelector("input");
-      const output = wrapper.querySelector("output");
-      input.addEventListener("input", () => {
-        output.textContent = input.value;
+      const input = document.getElementById(`rating-${field.key}`);
+      const output = document.getElementById(`output-${field.key}`);
+      input?.addEventListener("input", () => {
+        if (output) output.textContent = input.value;
       });
-
-      state.elements.ratingInputs.appendChild(wrapper);
     });
   }
 
   function openReviewComposer() {
     if (!state.selected) {
-      setStatus("Select a demo flat marker or property boundary before writing a review.");
+      setStatus("Select a property first, then you can write a review for the exact boundary.");
       scrollToMap();
       return;
     }
-
-    scrollToReviewComposer({ focusNote: true, delay: 80 });
-    setStatus("Review form ready. Your rating will be saved locally for the selected property.");
-  }
-
-  function saveReview() {
-    if (!state.selected) {
-      setStatus("Select a property on the map before saving a review.");
-      scrollToMap();
-      return;
-    }
-
-    const review = {
-      createdAt: new Date().toISOString(),
-      nickname: state.elements.reviewNickname?.value.trim() || "",
-      tenancyPeriod: state.elements.reviewTenancyPeriod?.value.trim() || "",
-      weeklyRent: state.elements.reviewWeeklyRent?.value.trim() || "",
-      recommend: state.elements.reviewRecommend?.value || "",
-      note: state.elements.reviewNote?.value.trim() || "",
-      propertyTitle: state.selected.title,
-      propertyId: state.selected.id,
-      ratings: {}
-    };
-
-    reviewFields.forEach((field) => {
-      const input = document.getElementById(`rating-${field.key}`);
-      review.ratings[field.key] = clampRating(Number(input?.value || defaultRating));
-    });
-
-    const localReviews = getLocalReviews(state.selected.id);
-    localReviews.push(review);
-    localStorage.setItem(storageKey(state.selected.id), JSON.stringify(localReviews));
-
-    resetReviewForm();
-    renderSelectedDetails();
-    scrollToReviewComposer({ delay: 80 });
-
-    if (state.selected.type === "demo" && state.selected.demoFlat) {
-      updateDemoMarker(state.selected.demoFlat);
-    }
-
-    setStatus("Review saved locally in this browser.");
+    scrollToReviewComposer({ delay: 80, focusNote: true });
   }
 
   function resetReviewForm() {
     state.elements.reviewForm?.reset();
-    reviewFields.forEach((field) => setText(`output-${field.key}`, String(defaultRating)));
+    reviewFields.forEach((field) => {
+      const input = document.getElementById(`rating-${field.key}`);
+      const output = document.getElementById(`output-${field.key}`);
+      if (input) input.value = String(defaultRating);
+      if (output) output.textContent = String(defaultRating);
+    });
   }
 
-  function getReviewsForTarget(target) {
+  function saveReview() {
+    if (!state.selected) {
+      setStatus("Select a property before saving a review.");
+      return;
+    }
+
+    const ratings = {};
+    reviewFields.forEach((field) => {
+      const input = document.getElementById(`rating-${field.key}`);
+      ratings[field.key] = clampNumber(Number(input?.value || defaultRating), 1, ratingScale);
+    });
+
+    const review = {
+      createdAt: new Date().toISOString(),
+      nickname: state.elements.reviewNickname?.value.trim() || "Tenant review",
+      tenancyPeriod: state.elements.reviewTenancyPeriod?.value.trim() || "",
+      weeklyRent: state.elements.reviewWeeklyRent?.value.trim() || "",
+      recommend: state.elements.reviewRecommend?.value || "Prefer not to say",
+      note: state.elements.reviewNote?.value.trim() || "",
+      ratings
+    };
+
+    const existing = getReviewsForTarget(state.selected, { includeSeed: false });
+    existing.push(review);
+    localStorage.setItem(storageKeyForTarget(state.selected), JSON.stringify(existing));
+
+    resetReviewForm();
+    renderSelectedDetails();
+    refreshDemoMarkersForSelected();
+    setStatus("Review saved locally for the selected property.");
+  }
+
+  function refreshDemoMarkersForSelected() {
+    state.demoMarkers.forEach(({ flat }) => updateDemoMarker(flat));
+  }
+
+  function getReviewsForTarget(target, options = {}) {
     if (!target) return [];
-    const seed = getSeedReviewsForTarget(target);
-    const local = getLocalReviews(target.id);
-    return [...seed, ...local];
-  }
+    const includeSeed = options.includeSeed !== false;
+    const seed = includeSeed && target.demoFlat?.seedReviews ? target.demoFlat.seedReviews : [];
 
-  function getSeedReviewsForTarget(target) {
-    if (target.type === "demo" && target.demoFlat) {
-      return getSeedReviews(target.demoFlat);
-    }
-
-    if (target.id?.startsWith("property:")) {
-      const propertyIdValue = target.id.replace("property:", "");
-      const demo = findDemoFlatForProperty(propertyIdValue);
-      if (demo) return getSeedReviews(demo);
-    }
-
-    return [];
-  }
-
-  function getSeedReviews(flat) {
-    return (flat.seedReviews || []).map((review) => ({ ...review, seed: true }));
-  }
-
-  function getLocalReviews(id) {
+    let saved = [];
     try {
-      const raw = localStorage.getItem(storageKey(id));
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (error) {
-      console.warn("Could not read Flatwise reviews:", error);
-      return [];
+      saved = JSON.parse(localStorage.getItem(storageKeyForTarget(target)) || "[]");
+    } catch {
+      saved = [];
     }
+
+    return [...seed, ...(Array.isArray(saved) ? saved : [])];
   }
 
-  function storageKey(id) {
-    return `${config.reviews?.storagePrefix || "flatwise_linz_reviews_v1:"}${id}`;
+  function storageKeyForTarget(target) {
+    return `${config.reviews?.storagePrefix || "flatwise_reviews:"}${target.id || "unknown"}`;
   }
 
-  function propertyStyle(type) {
-    if (type === "hover") {
-      return { color: "#0a6b44", weight: 3, opacity: 1, fillColor: "#1f7a4f", fillOpacity: 0.2 };
+  function calculateOverall(reviews) {
+    const values = reviews
+      .map((review) => review?.ratings?.overallLiveability)
+      .map(Number)
+      .filter(Number.isFinite);
+
+    if (!values.length) {
+      const all = reviews.flatMap((review) => Object.values(review?.ratings || {}).map(Number).filter(Number.isFinite));
+      return all.length ? average(all) : NaN;
     }
-    if (type === "selected") {
-      return { color: "#d13d2f", weight: 4.5, opacity: 1, fillColor: "#d13d2f", fillOpacity: 0.22 };
-    }
-    if (type === "muted") {
-      return { color: "#5e6965", weight: 1.35, opacity: 0.65, fillColor: "#fffaf0", fillOpacity: 0.05 };
-    }
-    return { color: "#16211c", weight: 1.15, opacity: 0.58, fillColor: "#fffaf0", fillOpacity: 0.09 };
+
+    return average(values);
   }
 
-  function buildingStyle() {
-    return { color: "#2f6fb2", weight: 1, opacity: 0.42, fillColor: "#2f6fb2", fillOpacity: 0.08 };
+  function averageForField(reviews, key) {
+    const values = reviews.map((review) => Number(review?.ratings?.[key])).filter(Number.isFinite);
+    return values.length ? average(values) : NaN;
+  }
+
+  function average(values) {
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }
+
+  function findNearestRentArea(latlng) {
+    if (!latlng || !Array.isArray(state.rentData.areas) || !state.rentData.areas.length) return null;
+
+    let best = null;
+    let bestDistance = Infinity;
+    state.rentData.areas.forEach((area) => {
+      const lat = Number(area.lat);
+      const lng = Number(area.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const distance = state.map ? state.map.distance(latlng, L.latLng(lat, lng)) : Math.hypot(latlng.lat - lat, latlng.lng - lng);
+      if (distance < bestDistance) {
+        best = area;
+        bestDistance = distance;
+      }
+    });
+
+    return bestDistance < 4500 ? best : null;
+  }
+
+  function findDemoFlatForProperty(idValue) {
+    if (!idValue) return null;
+    for (const entry of state.demoMarkers.values()) {
+      if (entry.flat.lockedPropertyId && entry.flat.lockedPropertyId === idValue) return entry.flat;
+    }
+    return null;
+  }
+
+  function selectedSuburbFromFeature(feature) {
+    const props = feature?.properties || {};
+    return props.territorial_authority || props.ta_name || props.suburb || "Wellington";
   }
 
   function propertyTitle(feature) {
-    const p = feature?.properties || {};
-    const legal = firstMeaningful([p.legal_description, p.title_no ? `Title ${p.title_no}` : ""]);
-    const source = firstMeaningful([p.source, p.title_type, "Property boundary"]);
-    return firstMeaningful([legal, source, p.valuation_reference ? `Valuation ${p.valuation_reference}` : "", `LINZ property ${propertyId(feature)}`]);
+    const props = feature?.properties || {};
+    const readable = props.legal_description || props.title_no || props.valuation_reference || props.source_id || props.parcel_id || props.OBJECTID;
+    return readable ? `Property ${propertyId(feature)}` : "Selected property";
   }
 
   function propertyId(feature) {
-    const p = feature?.properties || {};
-    return String(firstMeaningful([
-      p.unit_of_property_id,
-      p.source_id,
-      p.valuation_reference_ascii,
-      p.valuation_reference,
-      p.title_no,
-      p.parcel_id,
-      p.untitled_land_id,
-      p.OBJECTID,
-      p.objectid,
-      stableGeometryKey(feature),
-      "unknown-property"
-    ]));
+    const props = feature?.properties || {};
+    return String(props.unit_of_property_id || props.source_id || props.parcel_id || props.OBJECTID || props.id || hashFeature(feature));
   }
 
   function sameProperty(a, b) {
     return propertyId(a) === propertyId(b);
   }
 
-  function propertyArea(feature) {
-    const p = feature?.properties || {};
-    const area = Number(p.area || p.Shape__Area || p.SHAPE__Area);
-    return Number.isFinite(area) && area > 0 ? area : 0;
-  }
-
-  function boundaryDescription(feature) {
-    const p = feature?.properties || {};
-    const source = firstMeaningful([p.source, p.title_type, "property boundary"]);
-    const legal = firstMeaningful([p.legal_description, p.title_no ? `Title ${p.title_no}` : ""]);
-    const authority = firstMeaningful([p.territorial_authority, p.territorial_authority_ascii]);
-    const area = propertyArea(feature);
-    const fragments = [];
-
-    fragments.push(`Official LINZ ${source} polygon.`);
-    if (legal) fragments.push(`Legal reference: ${legal}.`);
-    if (authority) fragments.push(`Territorial authority: ${authority}.`);
-    if (area) fragments.push(`Approximate area: ${Math.round(area).toLocaleString()} square metres.`);
-    fragments.push("Use this for map review selection only, not for legal boundary definition.");
-
-    return fragments.join(" ");
-  }
-
-  function stableGeometryKey(feature) {
-    try {
-      return btoa(JSON.stringify(feature?.geometry || {}).slice(0, 96)).replace(/=+$/, "");
-    } catch {
-      return "";
-    }
-  }
-
-  function featureContainsLatLng(feature, latLng) {
-    const geometry = feature?.geometry;
-    if (!geometry || !latLng) return false;
-
-    const x = latLng.lng;
-    const y = latLng.lat;
-
-    if (geometry.type === "Polygon") {
-      return polygonContainsPoint(geometry.coordinates, x, y);
-    }
-
-    if (geometry.type === "MultiPolygon") {
-      return geometry.coordinates.some((polygon) => polygonContainsPoint(polygon, x, y));
-    }
-
-    return false;
-  }
-
-  function polygonContainsPoint(rings, x, y) {
-    if (!Array.isArray(rings) || rings.length === 0) return false;
-    const outer = rings[0];
-    if (!ringContainsPoint(outer, x, y)) return false;
-
-    for (let i = 1; i < rings.length; i += 1) {
-      if (ringContainsPoint(rings[i], x, y)) return false;
-    }
-
-    return true;
-  }
-
-  function ringContainsPoint(ring, x, y) {
-    let inside = false;
-    if (!Array.isArray(ring)) return false;
-
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
-      const xi = Number(ring[i][0]);
-      const yi = Number(ring[i][1]);
-      const xj = Number(ring[j][0]);
-      const yj = Number(ring[j][1]);
-      const intersects = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi;
-      if (intersects) inside = !inside;
-    }
-
-    return inside;
+  function hashFeature(feature) {
+    const text = JSON.stringify(feature?.geometry || {}).slice(0, 1200);
+    let hash = 0;
+    for (let i = 0; i < text.length; i += 1) hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+    return Math.abs(hash).toString(36);
   }
 
   function getFeatureBounds(feature) {
+    if (!feature?.geometry) return null;
     try {
-      const layer = L.geoJSON(feature);
-      return layer.getBounds();
+      return L.geoJSON(feature).getBounds();
     } catch {
       return null;
     }
@@ -1459,131 +1234,466 @@
     return bounds?.isValid() ? bounds.getCenter() : null;
   }
 
-  function findRentArea(centre) {
-    if (!centre || !Array.isArray(state.rentData?.areas)) return null;
-
-    let best = null;
-    let bestDistance = Infinity;
-    state.rentData.areas.forEach((area) => {
-      if (!Number.isFinite(Number(area.lat)) || !Number.isFinite(Number(area.lng))) return;
-      const distance = distanceMeters(centre.lat, centre.lng, Number(area.lat), Number(area.lng));
-      if (distance < bestDistance) {
-        best = area;
-        bestDistance = distance;
-      }
-    });
-
-    return bestDistance <= 2600 ? best : null;
+  function propertyStyle(mode) {
+    const styles = {
+      normal: { color: "#101312", weight: 1.2, opacity: 0.48, fillColor: "#fffaf0", fillOpacity: 0.03 },
+      hover: { color: "#1f7a4f", weight: 2.2, opacity: 0.92, fillColor: "#1f7a4f", fillOpacity: 0.12 },
+      muted: { color: "#b23a2f", weight: 1.8, opacity: 0.7, fillColor: "#b23a2f", fillOpacity: 0.08 },
+      selected: { color: "#b23a2f", weight: 3.2, opacity: 0.98, fillColor: "#b23a2f", fillOpacity: 0.07 }
+    };
+    return styles[mode] || styles.normal;
   }
 
-  function calculateOverall(reviews) {
-    if (!reviews.length) return NaN;
-    const scores = reviews.map(calculateReviewScore).filter(Number.isFinite);
-    if (!scores.length) return NaN;
-    return scores.reduce((sum, value) => sum + value, 0) / scores.length;
-  }
-
-  function calculateReviewScore(review) {
-    const ratings = review?.ratings || {};
-    const values = reviewFields.map((field) => Number(ratings[field.key])).filter(Number.isFinite);
-    if (!values.length) return NaN;
-    return values.reduce((sum, value) => sum + value, 0) / values.length;
-  }
-
-  function calculateFieldAverage(reviews, key) {
-    const values = reviews.map((review) => Number(review?.ratings?.[key])).filter(Number.isFinite);
-    if (!values.length) return NaN;
-    return values.reduce((sum, value) => sum + value, 0) / values.length;
-  }
-
-  function setRatingPill(el, value) {
-    if (!el) return;
-    if (!Number.isFinite(value)) {
-      el.textContent = "No rating";
-      el.className = "rating-pill";
-      return;
-    }
-
-    el.textContent = `${value.toFixed(1)} / ${ratingScale}`;
-    el.className = `rating-pill ${ratingClass(value)}`;
+  function buildingStyle() {
+    return { color: "#2f6fb2", weight: 1, opacity: 0.36, fillColor: "#2f6fb2", fillOpacity: 0.08 };
   }
 
   function ratingClass(value) {
-    if (!Number.isFinite(value)) return "";
-    if (value >= 7.5) return "good";
+    if (!Number.isFinite(Number(value))) return "";
+    if (value >= 7.2) return "good";
     if (value >= 5) return "warning";
     return "bad";
   }
 
-  function clampRating(value) {
-    if (!Number.isFinite(value)) return defaultRating;
-    return Math.max(1, Math.min(ratingScale, Math.round(value)));
-  }
-
-  function distanceMeters(lat1, lon1, lat2, lon2) {
-    const earthRadius = 6371000;
-    const toRad = (degrees) => (degrees * Math.PI) / 180;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
-
-  async function fetchJson(url, timeoutMs = 8000, signal = null) {
-    const controller = signal ? null : new AbortController();
-    const activeSignal = signal || controller.signal;
-    const timeout = controller ? window.setTimeout(() => controller.abort(), timeoutMs) : 0;
-
-    try {
-      const response = await fetch(url, {
-        signal: activeSignal,
-        headers: { Accept: "application/json, application/geo+json" }
-      });
-      if (!response.ok) throw new Error(`Request failed with ${response.status}`);
-      return await response.json();
-    } finally {
-      if (timeout) window.clearTimeout(timeout);
-    }
-  }
-
   function setStatus(message) {
-    if (state.elements.mapStatus) {
-      state.elements.mapStatus.textContent = message;
-    }
+    if (state.elements.mapStatus) state.elements.mapStatus.textContent = message;
   }
 
-  function setText(id, text) {
-    const element = state.elements[id] || document.getElementById(id);
-    if (element) element.textContent = text ?? "";
+  function setText(id, value) {
+    if (state.elements[id]) state.elements[id].textContent = value;
   }
 
-  function firstMeaningful(values) {
-    for (const value of values) {
-      if (value === null || value === undefined) continue;
-      const text = String(value).trim();
-      if (text && text.toLowerCase() !== "null" && text.toLowerCase() !== "undefined") return text;
-    }
-    return "";
+  function fetchJson(url, timeoutMs = 8000) {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+
+    return fetch(url, { signal: controller.signal }).then((response) => {
+      if (!response.ok) throw new Error(`Request failed with ${response.status}`);
+      return response.json();
+    }).finally(() => window.clearTimeout(timer));
   }
 
-  function slugify(value) {
-    return String(value || "flatwise")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "flatwise";
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+  function slugify(text) {
+    return String(text).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "flatwise-item";
   }
 
   function structuredCloneSafe(value) {
     if (typeof structuredClone === "function") return structuredClone(value);
     return JSON.parse(JSON.stringify(value));
+  }
+
+  function clampNumber(value, min, max) {
+    if (!Number.isFinite(value)) return min;
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>'"]/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "'": "&#039;",
+      '"': "&quot;"
+    }[char]));
+  }
+
+  function escapeAttribute(value) {
+    return escapeHtml(value).replace(/`/g, "&#096;");
+  }
+
+  function updateSunlightReadout() {
+    const readout = state.elements.sunlightReadout;
+    if (!readout) return;
+
+    const mode = state.sunlightMode || "off";
+    if (mode === "off") {
+      readout.classList.add("hidden");
+      return;
+    }
+
+    readout.classList.remove("hidden");
+    setText("sunlightTitle", sunlightModeLabel(mode));
+
+    if (!state.selected) {
+      setText("sunlightText", "Select a property to draw this estimate over the parcel boundary.");
+      return;
+    }
+
+    setText("sunlightText", sunlightModeText(mode));
+  }
+
+  function sunlightModeLabel(mode) {
+    const labels = {
+      off: "Off",
+      heat: "Sun heatmap",
+      shadow: "Shadow cast",
+      winter: "Winter sunlight",
+      summer: "Summer sunlight",
+      daily: "Daily average estimate"
+    };
+    return labels[mode] || "Estimated sunlight";
+  }
+
+  function sunlightModeText(mode) {
+    const text = {
+      heat: "A smooth estimated sunlight score sampled across the selected property.",
+      shadow: "Projected building shadows cast across the selected property from the estimated sun angle.",
+      winter: "A harsher winter-focused sunlight estimate, useful for cold and damp Wellington flats.",
+      summer: "A stronger summer exposure estimate with longer daylight and higher sun angles.",
+      daily: "An estimated average from several daylight samples across the day."
+    };
+    return text[mode] || "Estimated sunlight is active for the selected property.";
+  }
+
+  class SunlightCanvasLayer extends L.Layer {
+    constructor(options = {}) {
+      super(options);
+      this.options = options;
+      this.mode = options.mode || "off";
+      this.selectedFeature = options.selectedFeature || null;
+      this.buildingFeatures = options.buildingFeatures || [];
+      this.canvas = null;
+      this._frame = 0;
+    }
+
+    onAdd(map) {
+      this._map = map;
+      this.canvas = L.DomUtil.create("canvas", "flatwise-sunlight-canvas leaflet-zoom-animated");
+      map.getPane("sunlightPane").appendChild(this.canvas);
+      map.on("moveend zoomend resize viewreset", this.redrawSoon, this);
+      this.redrawSoon();
+    }
+
+    onRemove(map) {
+      map.off("moveend zoomend resize viewreset", this.redrawSoon, this);
+      if (this.canvas?.parentNode) this.canvas.parentNode.removeChild(this.canvas);
+      this.canvas = null;
+      if (this._frame) cancelAnimationFrame(this._frame);
+    }
+
+    setMode(mode) {
+      this.mode = mode || "off";
+      this.redrawSoon();
+    }
+
+    setSelectedFeature(feature) {
+      this.selectedFeature = feature || null;
+      this.redrawSoon();
+    }
+
+    setBuildingFeatures(features) {
+      this.buildingFeatures = Array.isArray(features) ? features : [];
+      this.redrawSoon();
+    }
+
+    redrawSoon() {
+      if (this._frame) cancelAnimationFrame(this._frame);
+      this._frame = requestAnimationFrame(() => this.redraw());
+    }
+
+    redraw() {
+      this._frame = 0;
+      if (!this._map || !this.canvas) return;
+
+      const map = this._map;
+      const size = map.getSize();
+      const topLeft = map.containerPointToLayerPoint([0, 0]);
+      L.DomUtil.setPosition(this.canvas, topLeft);
+      this.canvas.width = size.x;
+      this.canvas.height = size.y;
+
+      const ctx = this.canvas.getContext("2d");
+      ctx.clearRect(0, 0, size.x, size.y);
+
+      if (this.mode === "off" || !this.selectedFeature) return;
+
+      const rings = featureToCanvasRings(this.selectedFeature, map);
+      if (!rings.length) return;
+
+      const selectedBounds = pixelBoundsFromRings(rings).pad(config.sunlight?.propertyPaddingPixels ?? 18);
+      const samples = buildSunSamples(this.mode, getFeatureCentre(this.selectedFeature) || map.getCenter());
+      const shadowCollections = samples.map((sun) => buildShadowPolygons(this.buildingFeatures, sun, map, selectedBounds));
+
+      ctx.save();
+      clipToFeature(ctx, rings);
+
+      if (this.mode === "shadow") {
+        this.drawShadowMode(ctx, rings, shadowCollections[0] || [], selectedBounds);
+      } else {
+        this.drawHeatMode(ctx, rings, selectedBounds, samples, shadowCollections);
+      }
+
+      ctx.restore();
+      this.drawPropertySoftEdge(ctx, rings);
+    }
+
+    drawHeatMode(ctx, rings, selectedBounds, samples, shadowCollections) {
+      const step = config.sunlight?.gridStepPixels || 9;
+      const heatOpacity = config.sunlight?.heatOpacity ?? 0.78;
+      const centre = selectedBounds.getCenter();
+
+      for (let y = Math.max(0, Math.floor(selectedBounds.min.y)); y <= selectedBounds.max.y; y += step) {
+        for (let x = Math.max(0, Math.floor(selectedBounds.min.x)); x <= selectedBounds.max.x; x += step) {
+          if (!pointInFeatureRings({ x, y }, rings)) continue;
+
+          let score = 0;
+          samples.forEach((sun, index) => {
+            const shadowed = pointInAnyPolygon({ x, y }, shadowCollections[index] || []);
+            score += scoreSunlightAtPoint({ x, y }, centre, sun, shadowed, this.mode);
+          });
+          score = clampNumber(score / Math.max(samples.length, 1), 0, 1);
+
+          ctx.fillStyle = heatColor(score, heatOpacity);
+          ctx.fillRect(x - step / 2, y - step / 2, step + 1, step + 1);
+        }
+      }
+
+      const currentShadows = shadowCollections[0] || [];
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = "#24384a";
+      currentShadows.forEach((poly) => fillPolygon(ctx, poly));
+      ctx.globalAlpha = 1;
+    }
+
+    drawShadowMode(ctx, rings, shadows, selectedBounds) {
+      ctx.fillStyle = "rgba(255, 250, 240, 0.42)";
+      rings.forEach((polygon) => polygon.forEach((ring) => fillPolygon(ctx, ring)));
+
+      const gradient = ctx.createLinearGradient(selectedBounds.min.x, selectedBounds.min.y, selectedBounds.max.x, selectedBounds.max.y);
+      gradient.addColorStop(0, "rgba(255, 213, 103, 0.26)");
+      gradient.addColorStop(1, "rgba(255, 250, 240, 0.06)");
+      ctx.fillStyle = gradient;
+      rings.forEach((polygon) => polygon.forEach((ring) => fillPolygon(ctx, ring)));
+
+      ctx.fillStyle = `rgba(28, 43, 61, ${config.sunlight?.shadowOpacity ?? 0.28})`;
+      shadows.forEach((poly) => fillPolygon(ctx, poly));
+    }
+
+    drawPropertySoftEdge(ctx, rings) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(244, 182, 66, 0.72)";
+      ctx.lineWidth = 2;
+      rings.forEach((polygon) => polygon.forEach((ring) => strokePolygon(ctx, ring)));
+      ctx.restore();
+    }
+  }
+
+  function buildSunSamples(mode, centre) {
+    const lat = centre?.lat ?? -41.29435;
+    const lng = centre?.lng ?? 174.7769;
+    const now = new Date();
+
+    if (mode === "winter") return makeSeasonalSamples(now.getFullYear(), 5, 21, [9, 11, 13, 15], lat, lng);
+    if (mode === "summer") return makeSeasonalSamples(now.getFullYear(), 11, 21, [8, 10, 12, 14, 16, 18], lat, lng);
+    if (mode === "daily") return makeDailySamples(now, [8, 10, 12, 14, 16], lat, lng);
+
+    const sampleDate = new Date(now);
+    if (mode === "heat") sampleDate.setHours(12, 0, 0, 0);
+    const sun = getSunPosition(sampleDate, lat, lng);
+    if (sun.altitude <= 0.03) {
+      const noon = new Date(now);
+      noon.setHours(12, 0, 0, 0);
+      return [getSunPosition(noon, lat, lng)];
+    }
+    return [sun];
+  }
+
+  function makeSeasonalSamples(year, monthIndex, day, hours, lat, lng) {
+    return hours.map((hour) => {
+      const date = new Date(year, monthIndex, day, hour, 0, 0, 0);
+      return getSunPosition(date, lat, lng);
+    }).filter((sun) => sun.altitude > 0.02);
+  }
+
+  function makeDailySamples(date, hours, lat, lng) {
+    const samples = hours.map((hour) => {
+      const sample = new Date(date);
+      sample.setHours(hour, 0, 0, 0);
+      return getSunPosition(sample, lat, lng);
+    }).filter((sun) => sun.altitude > 0.02);
+    return samples.length ? samples : [getSunPosition(new Date(date.setHours(12, 0, 0, 0)), lat, lng)];
+  }
+
+  function getSunPosition(date, lat, lng) {
+    const rad = Math.PI / 180;
+    const day = date.valueOf() / 86400000 - 10957.5;
+    const eclipticObliquity = rad * 23.4397;
+    const meanAnomaly = rad * (357.5291 + 0.98560028 * day);
+    const equationOfCenter = rad * (1.9148 * Math.sin(meanAnomaly) + 0.0200 * Math.sin(2 * meanAnomaly) + 0.0003 * Math.sin(3 * meanAnomaly));
+    const perihelion = rad * 102.9372;
+    const eclipticLongitude = meanAnomaly + equationOfCenter + perihelion + Math.PI;
+    const declination = Math.asin(Math.sin(eclipticLongitude) * Math.sin(eclipticObliquity));
+    const rightAscension = Math.atan2(Math.sin(eclipticLongitude) * Math.cos(eclipticObliquity), Math.cos(eclipticLongitude));
+    const lw = rad * -lng;
+    const phi = rad * lat;
+    const siderealTime = rad * (280.16 + 360.9856235 * day) - lw;
+    const hourAngle = siderealTime - rightAscension;
+    const altitude = Math.asin(Math.sin(phi) * Math.sin(declination) + Math.cos(phi) * Math.cos(declination) * Math.cos(hourAngle));
+    const rawAzimuth = Math.atan2(Math.sin(hourAngle), Math.cos(hourAngle) * Math.sin(phi) - Math.tan(declination) * Math.cos(phi));
+    const azimuth = positiveModulo(rawAzimuth + Math.PI, Math.PI * 2);
+    return { altitude, azimuth, date };
+  }
+
+  function scoreSunlightAtPoint(point, centre, sun, shadowed, mode) {
+    const altitudeScore = clampNumber((sun.altitude - 0.02) / 1.22, 0.04, 1);
+    const dx = point.x - centre.x;
+    const dy = point.y - centre.y;
+    const angle = Math.atan2(dy, dx);
+    const sunScreenAngle = Math.atan2(-Math.cos(sun.azimuth), Math.sin(sun.azimuth));
+    const facing = 0.5 + 0.5 * Math.cos(angle - sunScreenAngle);
+    const seasonalWeight = mode === "winter" ? 0.82 : mode === "summer" ? 1.12 : 1;
+    const shadowPenalty = shadowed ? (mode === "winter" ? 0.34 : 0.52) : 1;
+    return clampNumber((altitudeScore * 0.76 + facing * 0.24) * seasonalWeight * shadowPenalty, 0, 1);
+  }
+
+  function heatColor(score, alpha) {
+    const stops = [
+      { at: 0, color: [45, 85, 137] },
+      { at: 0.42, color: [49, 151, 121] },
+      { at: 0.72, color: [221, 165, 55] },
+      { at: 1, color: [247, 222, 120] }
+    ];
+
+    let left = stops[0];
+    let right = stops[stops.length - 1];
+    for (let i = 0; i < stops.length - 1; i += 1) {
+      if (score >= stops[i].at && score <= stops[i + 1].at) {
+        left = stops[i];
+        right = stops[i + 1];
+        break;
+      }
+    }
+
+    const amount = (score - left.at) / Math.max(0.001, right.at - left.at);
+    const rgb = left.color.map((value, index) => Math.round(value + (right.color[index] - value) * amount));
+    return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+  }
+
+  function buildShadowPolygons(features, sun, map, selectedBounds) {
+    if (!Array.isArray(features) || !features.length || sun.altitude <= 0.02) return [];
+
+    const maxShadowMeters = config.sunlight?.maxShadowLengthMeters || 180;
+    const defaultHeight = config.sunlight?.defaultBuildingHeightMeters || 8;
+    const centre = map.getCenter();
+    const metersPerPixel = getMetersPerPixel(centre.lat, map.getZoom());
+    const shadowDirection = {
+      x: -Math.sin(sun.azimuth),
+      y: Math.cos(sun.azimuth)
+    };
+
+    const result = [];
+    features.forEach((feature) => {
+      const buildingRings = featureToCanvasRings(feature, map);
+      if (!buildingRings.length) return;
+
+      const featureBounds = pixelBoundsFromRings(buildingRings).pad(80);
+      if (!featureBounds.intersects(selectedBounds.pad(260))) return;
+
+      const height = estimateBuildingHeight(feature, defaultHeight);
+      const lengthMeters = clampNumber(height / Math.tan(Math.max(sun.altitude, 0.08)), 8, maxShadowMeters);
+      const lengthPixels = lengthMeters / Math.max(metersPerPixel, 0.01);
+      const offset = { x: shadowDirection.x * lengthPixels, y: shadowDirection.y * lengthPixels };
+
+      buildingRings.forEach((polygon) => {
+        const outer = polygon[0];
+        if (!outer || outer.length < 3) return;
+        const shifted = outer.map((point) => ({ x: point.x + offset.x, y: point.y + offset.y })).reverse();
+        result.push([...outer, ...shifted]);
+      });
+    });
+
+    return result.slice(0, 80);
+  }
+
+  function estimateBuildingHeight(feature, fallback) {
+    const props = feature?.properties || {};
+    const direct = Number(props.height || props.building_height || props.render_height);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+
+    const levels = Number(props.levels || props.building_levels || props["building:levels"]);
+    if (Number.isFinite(levels) && levels > 0) return levels * 3.1;
+
+    return fallback;
+  }
+
+  function getMetersPerPixel(lat, zoom) {
+    return (156543.03392 * Math.cos(lat * Math.PI / 180)) / Math.pow(2, zoom);
+  }
+
+  function featureToCanvasRings(feature, map) {
+    const geometry = feature?.geometry;
+    if (!geometry) return [];
+
+    const polygons = geometry.type === "Polygon"
+      ? [geometry.coordinates]
+      : geometry.type === "MultiPolygon"
+        ? geometry.coordinates
+        : [];
+
+    return polygons.map((polygon) => polygon.map((ring) => ring.map(([lng, lat]) => map.latLngToContainerPoint([lat, lng]))));
+  }
+
+  function pixelBoundsFromRings(polygons) {
+    const bounds = L.bounds([Infinity, Infinity], [-Infinity, -Infinity]);
+    polygons.forEach((polygon) => polygon.forEach((ring) => ring.forEach((point) => bounds.extend(point))));
+    return bounds;
+  }
+
+  function clipToFeature(ctx, polygons) {
+    ctx.beginPath();
+    polygons.forEach((polygon) => polygon.forEach((ring) => tracePolygon(ctx, ring)));
+    ctx.clip("evenodd");
+  }
+
+  function pointInFeatureRings(point, polygons) {
+    return polygons.some((polygon) => {
+      if (!polygon.length || !pointInRing(point, polygon[0])) return false;
+      for (let i = 1; i < polygon.length; i += 1) {
+        if (pointInRing(point, polygon[i])) return false;
+      }
+      return true;
+    });
+  }
+
+  function pointInAnyPolygon(point, polygons) {
+    return polygons.some((polygon) => pointInRing(point, polygon));
+  }
+
+  function pointInRing(point, ring) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+      const xi = ring[i].x;
+      const yi = ring[i].y;
+      const xj = ring[j].x;
+      const yj = ring[j].y;
+      const intersect = ((yi > point.y) !== (yj > point.y)) && (point.x < ((xj - xi) * (point.y - yi)) / ((yj - yi) || 0.000001) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  function tracePolygon(ctx, ring) {
+    if (!ring || !ring.length) return;
+    ctx.moveTo(ring[0].x, ring[0].y);
+    for (let i = 1; i < ring.length; i += 1) ctx.lineTo(ring[i].x, ring[i].y);
+    ctx.closePath();
+  }
+
+  function fillPolygon(ctx, ring) {
+    if (!ring || ring.length < 3) return;
+    ctx.beginPath();
+    tracePolygon(ctx, ring);
+    ctx.fill();
+  }
+
+  function strokePolygon(ctx, ring) {
+    if (!ring || ring.length < 3) return;
+    ctx.beginPath();
+    tracePolygon(ctx, ring);
+    ctx.stroke();
+  }
+
+  function positiveModulo(value, modulus) {
+    return ((value % modulus) + modulus) % modulus;
   }
 })();

@@ -1,13 +1,13 @@
 {
-  "updated": "2026-05-24",
-  "note": "Demo data for the GitHub Pages prototype. Demo flats start with seed coordinates and are automatically snapped to the official LINZ NZ Property Boundaries polygon that contains that point when the map loads.",
+  "updated": "2026-05-28",
+  "note": "Demo data for the GitHub Pages prototype. Demo flats include approximate fallback GeoJSON boundaries so selected properties can still be highlighted if the live boundary service is unavailable.",
   "areas": [
     {
       "name": "Te Aro",
       "lat": -41.2946,
       "lng": 174.7756,
       "weeklyRent": "$620–$760 per week",
-      "description": "Demo inner-city guidance for a typical two-bedroom flat. Replace this with official MBIE or Tenancy Services market-rent data before public launch."
+      "description": "Demo inner-city guidance for a typical two-bedroom flat. Replace this with verified official market-rent data before public use."
     },
     {
       "name": "Mount Cook",
@@ -40,19 +40,19 @@
   ],
   "demoFlats": [
     {
-      "id": "te-aro-jessie-demo-flat",
+      "id": "te-aro-demo-flat",
       "title": "Te Aro demo flat",
       "lat": -41.2944,
       "lng": 174.7769,
       "score": 6.2,
-      "note": "Demo review marker. On page load, Flatwise asks LINZ which official property contains this coordinate, then snaps the marker and outline to that polygon.",
+      "note": "Demo review marker showing a mixed but liveable inner-city flat.",
       "seedReviews": [
         {
           "createdAt": "2026-05-02T09:15:00.000Z",
           "tenancyPeriod": "2024–2025",
           "weeklyRent": "$690 / week",
           "recommend": "Maybe",
-          "note": "Good location and easy to get into town. The bedrooms were cold in winter, and condensation built up quickly unless windows stayed open.",
+          "note": "Good location and easy to get into town, but the bedrooms were cold in winter and condensation built up quickly unless windows stayed open.",
           "ratings": {
             "rentValue": 6,
             "warmthInsulation": 4,
@@ -66,7 +66,27 @@
             "overallLiveability": 6
           }
         }
-      ]
+      ],
+      "boundary": {
+        "type": "Feature",
+        "properties": {
+          "id": "demo-boundary-te-aro-demo-flat",
+          "legal_description": "Te Aro demo flat boundary",
+          "_flatwise_demo_boundary": true
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [174.776715, -41.294565],
+              [174.777125, -41.294535],
+              [174.777085, -41.294235],
+              [174.776675, -41.294265],
+              [174.776715, -41.294565]
+            ]
+          ]
+        }
+      }
     },
     {
       "id": "kelburn-demo-flat",
@@ -74,7 +94,7 @@
       "lat": -41.2891,
       "lng": 174.7667,
       "score": 8.1,
-      "note": "Demo review marker that is snapped to an official LINZ property boundary when the service responds.",
+      "note": "Demo review marker showing a stronger rental experience.",
       "seedReviews": [
         {
           "createdAt": "2026-04-18T11:30:00.000Z",
@@ -95,7 +115,27 @@
             "overallLiveability": 8
           }
         }
-      ]
+      ],
+      "boundary": {
+        "type": "Feature",
+        "properties": {
+          "id": "demo-boundary-kelburn-demo-flat",
+          "legal_description": "Kelburn demo flat boundary",
+          "_flatwise_demo_boundary": true
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [174.766515, -41.289265],
+              [174.766925, -41.289235],
+              [174.766885, -41.288935],
+              [174.766475, -41.288965],
+              [174.766515, -41.289265]
+            ]
+          ]
+        }
+      }
     },
     {
       "id": "mount-cook-demo-flat",
@@ -103,7 +143,7 @@
       "lat": -41.3017,
       "lng": 174.7714,
       "score": 4.1,
-      "note": "Demo review marker showing a warning-style score. It also uses an official property lookup instead of a hand-drawn demo parcel.",
+      "note": "Demo review marker showing a warning-style score.",
       "seedReviews": [
         {
           "createdAt": "2026-03-27T08:10:00.000Z",
@@ -124,7 +164,27 @@
             "overallLiveability": 4
           }
         }
-      ]
+      ],
+      "boundary": {
+        "type": "Feature",
+        "properties": {
+          "id": "demo-boundary-mount-cook-demo-flat",
+          "legal_description": "Mount Cook demo flat boundary",
+          "_flatwise_demo_boundary": true
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [174.771215, -41.301865],
+              [174.771625, -41.301835],
+              [174.771585, -41.301535],
+              [174.771175, -41.301565],
+              [174.771215, -41.301865]
+            ]
+          ]
+        }
+      }
     }
   ]
 }

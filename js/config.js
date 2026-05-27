@@ -1,6 +1,6 @@
 const FLATWISE_CONFIG = {
-  googleStreetViewApiKey: "AIzaSyCovK8j_rIRwhJyb0pwNzaVgnMaqD_Cuoc",
-  enableStreetView: true,
+  enableStreetView: false,
+  googleStreetViewApiKey: "",
   map: {
     startCenter: [-41.29435, 174.7769],
     startZoom: 18,
@@ -42,20 +42,28 @@ const FLATWISE_CONFIG = {
       "Shape__Area",
       "Shape__Length"
     ].join(","),
-    buildingOutFields: "OBJECTID,id,name,use,Shape__Area,Shape__Length",
-    attribution: "Sourced from the LINZ Data Service and licensed for reuse under CC BY 4.0. Not for legal boundary definition."
+    buildingOutFields: "*",
+    attribution: "Sourced from LINZ-compatible public boundary services. Not for legal boundary definition."
   },
   reviews: {
     ratingScale: 10,
-    storagePrefix: "flatwise_linz_reviews_v1:"
+    storagePrefix: "flatwise_linz_reviews_v2:"
   },
   streetView: {
-    enableGoogleStreetView: true,
     searchRadiusMeters: 80,
     imageSize: "640x360",
     fov: 75,
     pitch: 0,
     placeholderHeading: 0
+  },
+  sunlight: {
+    defaultMode: "off",
+    defaultBuildingHeightMeters: 8,
+    maxShadowLengthMeters: 180,
+    gridStepPixels: 9,
+    propertyPaddingPixels: 18,
+    shadowOpacity: 0.28,
+    heatOpacity: 0.78
   }
 };
 
