@@ -210,8 +210,11 @@
     window.clearTimeout(state.refreshTimer);
     state.refreshTimer = window.setTimeout(() => {
       refresh(force).catch((error) => {
+        if (error?.name === "AbortError") return;
         console.warn("Flatwise 3D refresh failed:", error);
-        updateStatus("3D layer failed to refresh. Try zooming closer or panning slightly.");
+        state.features = [];
+        clearBuildingLayers();
+        updateStatus("3D layer could not refresh from the council/LINZ source. Zoom closer or pan slightly.");
       });
     }, force ? 40 : (settings.refreshDebounceMs || 340));
   }
@@ -257,44 +260,113 @@
   }
 
   async function loadBuildingsForView(bounds, force = false) {
-    const source = chooseBuildingSource(state.map.getCenter());
-    const cacheKey = `${source.key}:${state.map.getZoom()}:${roundedBounds(bounds, 4)}`;
-    state.sourceLabel = source.label;
-    updateSourceLabel(source.label);
+    const sources = chooseBuildingSources(state.map.getCenter()).filter((source) => source?.url);
+    if (!sources.length) {
+      return emptyFeatureCollection();
+    }
 
-    if (!force && state.cache.has(cacheKey)) return state.cache.get(cacheKey);
+    const boundsKey = roundedBounds(bounds, 4);
+    const cached = !force ? getFirstCachedSource(sources, boundsKey) : null;
+    if (cached) return cached;
 
     if (state.buildingAbortController) state.buildingAbortController.abort();
     state.buildingAbortController = new AbortController();
 
-    const requestUrl = buildArcGisEnvelopeQueryUrl(source.url, bounds, source.outFields || "*", source.key);
-    const response = await fetch(requestUrl, { signal: state.buildingAbortController.signal });
-    if (!response.ok) throw new Error(`Building source failed with HTTP ${response.status}`);
+    const errors = [];
 
-    const geoJson = await response.json();
-    if (!geoJson || !Array.isArray(geoJson.features)) throw new Error("Building source did not return GeoJSON features.");
+    for (const source of sources) {
+      const cacheKey = `${source.key}:${state.map.getZoom()}:${boundsKey}`;
+      state.sourceLabel = source.label;
+      updateSourceLabel(source.label);
 
-    state.cache.set(cacheKey, geoJson);
-    trimCache(state.cache, settings.cacheEntries || 16);
-    return geoJson;
+      try {
+        const geoJson = await fetchArcGisAsGeoJson(source, bounds, state.buildingAbortController.signal);
+        const features = Array.isArray(geoJson.features) ? geoJson.features : [];
+
+        if (!features.length) {
+          errors.push(`${source.label} returned no features`);
+          continue;
+        }
+
+        state.cache.set(cacheKey, geoJson);
+        trimCache(state.cache, settings.cacheEntries || 16);
+        return geoJson;
+      } catch (error) {
+        if (error?.name === "AbortError") throw error;
+        errors.push(`${source.label}: ${error.message || error}`);
+        console.warn(`Flatwise 3D building source failed (${source.label}):`, error);
+      }
+    }
+
+    updateSourceLabel("No building source available for this view");
+    updateStatus(errors.length ? `No 3D buildings loaded. ${errors[0]}.` : "No 3D buildings loaded for this view.");
+    return emptyFeatureCollection();
   }
 
-  function chooseBuildingSource(center) {
+  function getFirstCachedSource(sources, boundsKey) {
+    for (const source of sources) {
+      const cacheKey = `${source.key}:${state.map.getZoom()}:${boundsKey}`;
+      if (state.cache.has(cacheKey)) {
+        state.sourceLabel = source.label;
+        updateSourceLabel(source.label);
+        return state.cache.get(cacheKey);
+      }
+    }
+
+    return null;
+  }
+
+  async function fetchArcGisAsGeoJson(source, bounds, signal) {
+    const formats = source.preferJson ? ["json", "geojson"] : ["geojson", "json"];
+    let lastError = null;
+
+    for (const format of formats) {
+      try {
+        const requestUrl = buildArcGisEnvelopeQueryUrl(source.url, bounds, source.outFields || "*", source.key, format);
+        const response = await fetch(requestUrl, { signal });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+        const geoJson = normaliseArcGisPayloadToGeoJson(data);
+        return geoJson;
+      } catch (error) {
+        if (error?.name === "AbortError") throw error;
+        lastError = error;
+      }
+    }
+
+    throw lastError || new Error("Building source did not return usable features.");
+  }
+
+  function chooseBuildingSources(center) {
+    const sources = [];
+
     if (isInsideCityBounds(center, "wellington") && config.urls?.wccBuildingFootprints) {
-      return {
+      sources.push({
         key: "wcc-heights",
         label: "WCC building heights",
         url: config.urls.wccBuildingFootprints,
-        outFields: "OBJECTID,OBJECTID_1,base_elev,approx_hei,Status,Building_Spatial_ID_1"
-      };
+        outFields: "*"
+      });
+
+      if (config.urls?.wccBuildingFootprintsOutline) {
+        sources.push({
+          key: "wcc-outline-heights",
+          label: "WCC building outline heights",
+          url: config.urls.wccBuildingFootprintsOutline,
+          outFields: "*"
+        });
+      }
     }
 
-    return {
+    sources.push({
       key: "linz-footprints",
       label: "LINZ footprints + estimated height",
       url: config.urls?.buildingOutlines,
       outFields: config.linz?.buildingOutFields || "*"
-    };
+    });
+
+    return sources;
   }
 
   function isInsideCityBounds(latlng, key) {
@@ -303,7 +375,7 @@
     return latlng.lat >= bounds.south && latlng.lat <= bounds.north && latlng.lng >= bounds.west && latlng.lng <= bounds.east;
   }
 
-  function buildArcGisEnvelopeQueryUrl(baseUrl, bounds, outFields, sourceKey) {
+  function buildArcGisEnvelopeQueryUrl(baseUrl, bounds, outFields, sourceKey, format = "geojson") {
     const geometry = {
       xmin: bounds.getWest(),
       ymin: bounds.getSouth(),
@@ -313,7 +385,7 @@
     };
 
     const url = new URL(baseUrl);
-    url.searchParams.set("f", "geojson");
+    url.searchParams.set("f", format);
     url.searchParams.set("where", "1=1");
     url.searchParams.set("outFields", outFields || "*");
     url.searchParams.set("returnGeometry", "true");
@@ -330,6 +402,75 @@
     }
 
     return url.toString();
+  }
+
+  function normaliseArcGisPayloadToGeoJson(data) {
+    if (data?.error) {
+      throw new Error(data.error.message || "ArcGIS service returned an error.");
+    }
+
+    if (data?.type === "FeatureCollection" && Array.isArray(data.features)) {
+      return { ...data, features: data.features.filter((feature) => feature?.geometry) };
+    }
+
+    if (Array.isArray(data?.features)) {
+      const spatialReference = data.spatialReference || data.geometryProperties?.shapeAreaFieldName || null;
+      const features = data.features
+        .map((feature) => esriFeatureToGeoJsonFeature(feature, spatialReference))
+        .filter((feature) => feature?.geometry);
+
+      return {
+        type: "FeatureCollection",
+        features
+      };
+    }
+
+    return emptyFeatureCollection();
+  }
+
+  function esriFeatureToGeoJsonFeature(feature) {
+    const geometry = esriGeometryToGeoJson(feature?.geometry);
+    if (!geometry) return null;
+
+    return {
+      type: "Feature",
+      geometry,
+      properties: feature.attributes || feature.properties || {}
+    };
+  }
+
+  function esriGeometryToGeoJson(geometry) {
+    if (!geometry) return null;
+
+    if (Array.isArray(geometry.rings)) {
+      return {
+        type: "Polygon",
+        coordinates: geometry.rings.map((ring) => ring.map((point) => [Number(point[0]), Number(point[1])]))
+      };
+    }
+
+    if (Array.isArray(geometry.paths)) {
+      return {
+        type: "MultiLineString",
+        coordinates: geometry.paths.map((path) => path.map((point) => [Number(point[0]), Number(point[1])]))
+      };
+    }
+
+    if (Number.isFinite(Number(geometry.x)) && Number.isFinite(Number(geometry.y))) {
+      return {
+        type: "Point",
+        coordinates: [Number(geometry.x), Number(geometry.y)]
+      };
+    }
+
+    return null;
+  }
+
+  function emptyFeatureCollection() {
+    return {
+      type: "FeatureCollection",
+      features: []
+    };
   }
 
   function limitFeatures(features) {
@@ -626,10 +767,14 @@
   }
 
   function clearVisualLayers() {
+    clearBuildingLayers();
+    state.layers.terrain?.setTerrainGrid(null);
+  }
+
+  function clearBuildingLayers() {
     state.layers.walls?.clearLayers();
     state.layers.roofs?.clearLayers();
     state.layers.shadows?.clearLayers();
-    state.layers.terrain?.setTerrainGrid(null);
   }
 
   function toggleLayer(layer, shouldShow) {

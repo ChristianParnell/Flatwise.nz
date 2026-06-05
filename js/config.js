@@ -29,6 +29,7 @@ const FLATWISE_CONFIG = {
     // Wellington City Council has real approximate building-height fields.
     // Used automatically when the map is inside Wellington city.
     wccBuildingFootprints: "https://gis.wcc.govt.nz/arcgis/rest/services/PropertyAndBoundaries/BuildingFootprints/MapServer/0/query",
+    wccBuildingFootprintsOutline: "https://gis.wcc.govt.nz/arcgis/rest/services/PropertyAndBoundaries/BuildingFootprints/MapServer/1/query",
 
     // Optional coarse terrain shade source. The public API is free but should be sampled lightly.
     terrainElevation: "https://api.opentopodata.org/v1/nzdem8m"
