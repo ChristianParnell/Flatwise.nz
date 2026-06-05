@@ -175,6 +175,43 @@ window.FLATWISE_CONFIG = FLATWISE_CONFIG;
   }
 })();
 
+
+
+// Keep selected properties as boundary highlights only.
+// The main app creates a small centre marker after selecting a property. It can look like
+// a flashing square/pin during focus animations, so this hides that marker and removes
+// browser focus outlines while preserving the actual selected parcel boundary layer.
+(function installFlatwiseSelectionHighlightOnlyStyle() {
+  if (document.getElementById("flatwise-selection-highlight-only-style")) return;
+
+  const css = `
+    .selected-marker,
+    .leaflet-marker-icon.selected-marker,
+    .leaflet-marker-shadow.selected-marker {
+      display: none !important;
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+
+    .leaflet-container:focus,
+    .leaflet-container *:focus,
+    .leaflet-interactive:focus,
+    .leaflet-marker-icon:focus,
+    .leaflet-pane:focus,
+    .leaflet-overlay-pane svg:focus,
+    .leaflet-overlay-pane path:focus {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+  `;
+
+  const style = document.createElement("style");
+  style.id = "flatwise-selection-highlight-only-style";
+  style.textContent = css;
+  document.head.appendChild(style);
+})();
+
 // Auto-load the optional 3D/shadow plug-in. No index.html change is required as long as
 // this config.js file is loaded before js/app.js, which the current Flatwise page already does.
 (function autoLoadFlatwise3DPlugin() {
