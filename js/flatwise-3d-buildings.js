@@ -43,6 +43,9 @@
 
   const NZ_LATITUDE = -41.2865;
   const NZ_LONGITUDE = 174.7762;
+  const THREE_D_MODE_VALUE = settings.sunlightModeValue || "threeDShadow";
+  const THREE_D_MODE_LABEL = settings.sunlightModeLabel || "3D / shadow";
+
 
   function waitForFlatwiseMap() {
     const existingMap = window.FlatwiseMap || window.FLATWISE_MAPS?.[0];
@@ -116,9 +119,10 @@
     const control = L.control({ position: "topright" });
 
     control.onAdd = () => {
-      const container = L.DomUtil.create("div", "flatwise-3d-control leaflet-bar");
+      const container = L.DomUtil.create("div", "flatwise-3d-control");
       container.innerHTML = `
         <div class="flatwise-3d-control__title">3D / shadows</div>
+        <div class="flatwise-3d-control__note">Extra controls appear only while the Sunlight overlay is set to 3D / shadow.</div>
         <label class="flatwise-3d-control__row">
           <input type="checkbox" data-flatwise-3d-toggle>
           <span>3D buildings</span>
@@ -198,10 +202,102 @@
         scheduleRefresh(true);
       });
 
+      installSunlightModeIntegration();
+
       return container;
     };
 
     control.addTo(state.map);
+  }
+
+  function installSunlightModeIntegration() {
+    const select = document.getElementById(settings.sunlightModeSelectId || "sunlightMode");
+
+    if (!select) {
+      // Fallback for future layouts: keep the tool usable if the sunlight selector is renamed.
+      state.control.container?.classList.add("is-visible");
+      return;
+    }
+
+    ensure3DShadowOption(select);
+    syncFromSunlightModeSelect();
+
+    select.addEventListener("change", () => {
+      window.setTimeout(syncFromSunlightModeSelect, 0);
+    });
+  }
+
+  function ensure3DShadowOption(select) {
+    const existingOption = Array.from(select.options || []).find((option) => option.value === THREE_D_MODE_VALUE);
+    if (existingOption) {
+      existingOption.textContent = THREE_D_MODE_LABEL;
+      return;
+    }
+
+    const option = document.createElement("option");
+    option.value = THREE_D_MODE_VALUE;
+    option.textContent = THREE_D_MODE_LABEL;
+    select.appendChild(option);
+  }
+
+  function syncFromSunlightModeSelect() {
+    const select = document.getElementById(settings.sunlightModeSelectId || "sunlightMode");
+    const shouldShow3DPanel = !select || select.value === THREE_D_MODE_VALUE;
+
+    state.control.container?.classList.toggle("is-visible", shouldShow3DPanel);
+
+    if (shouldShow3DPanel) {
+      activate3DShadowModeFromSelect();
+      update3DShadowReadout();
+    } else {
+      deactivate3DShadowModeFromSelect();
+    }
+  }
+
+  function activate3DShadowModeFromSelect() {
+    if (!state.enabled3d && !state.enabledShadows) {
+      state.enabled3d = true;
+      state.enabledShadows = true;
+      state.enabledTerrain = false;
+    }
+
+    if (state.control.modeToggle) state.control.modeToggle.checked = state.enabled3d;
+    if (state.control.shadowToggle) state.control.shadowToggle.checked = state.enabledShadows;
+    if (state.control.terrainToggle) state.control.terrainToggle.checked = state.enabledTerrain;
+
+    toggleLayer(state.layers.walls, state.enabled3d);
+    toggleLayer(state.layers.roofs, state.enabled3d);
+    toggleLayer(state.layers.shadows, state.enabledShadows);
+    toggleLayer(state.layers.terrain, state.enabledTerrain);
+
+    scheduleRefresh(true);
+  }
+
+  function deactivate3DShadowModeFromSelect() {
+    state.enabled3d = false;
+    state.enabledShadows = false;
+    state.enabledTerrain = false;
+
+    if (state.control.modeToggle) state.control.modeToggle.checked = false;
+    if (state.control.shadowToggle) state.control.shadowToggle.checked = false;
+    if (state.control.terrainToggle) state.control.terrainToggle.checked = false;
+
+    toggleLayer(state.layers.walls, false);
+    toggleLayer(state.layers.roofs, false);
+    toggleLayer(state.layers.shadows, false);
+    toggleLayer(state.layers.terrain, false);
+    clearVisualLayers();
+    updateStatus("3D/shadow mode is off.");
+  }
+
+  function update3DShadowReadout() {
+    const title = document.getElementById("sunlightTitle");
+    const text = document.getElementById("sunlightText");
+
+    if (title) title.textContent = "3D / shadow mode";
+    if (text) {
+      text.textContent = "Buildings are drawn as a lightweight 2.5D layer. Shadows use the selected date/time and approximate building heights for a rental-focused sunlight check.";
+    }
   }
 
   function scheduleRefresh(force = false) {
@@ -977,30 +1073,48 @@
     style.id = "flatwise-3d-plugin-styles";
     style.textContent = `
       .flatwise-3d-control {
-        width: 210px;
-        padding: 12px;
+        display: none;
+        width: min(270px, calc(100vw - 34px));
+        box-sizing: border-box;
+        margin-top: 10px;
+        padding: 14px;
         border: 1px solid rgba(20, 26, 31, 0.16);
         border-radius: 18px;
-        background: rgba(255, 255, 255, 0.94);
+        background: rgba(255, 255, 255, 0.96);
         box-shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
         color: #17212b;
-        font: 600 13px/1.35 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font: 600 13px/1.38 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         backdrop-filter: blur(18px);
+        overflow: hidden;
+      }
+
+      .flatwise-3d-control.is-visible {
+        display: block;
       }
 
       .flatwise-3d-control__title {
-        margin-bottom: 8px;
+        margin-bottom: 5px;
         font-size: 14px;
         font-weight: 800;
         letter-spacing: -0.02em;
       }
 
+      .flatwise-3d-control__note {
+        margin-bottom: 10px;
+        color: #64727d;
+        font-size: 11px;
+        font-weight: 650;
+        line-height: 1.35;
+      }
+
       .flatwise-3d-control__row {
         display: flex;
         align-items: center;
-        gap: 8px;
-        margin: 7px 0;
+        gap: 9px;
+        min-height: 26px;
+        margin: 6px 0;
         cursor: pointer;
+        white-space: nowrap;
       }
 
       .flatwise-3d-control__row input {
@@ -1008,10 +1122,12 @@
       }
 
       .flatwise-3d-control__datetime {
+        display: block;
         width: 100%;
+        min-width: 0;
         box-sizing: border-box;
-        margin-top: 8px;
-        padding: 7px 8px;
+        margin-top: 10px;
+        padding: 8px 9px;
         border: 1px solid rgba(20, 26, 31, 0.14);
         border-radius: 10px;
         background: rgba(248, 250, 252, 0.92);
@@ -1023,27 +1139,33 @@
       .flatwise-3d-control__buttons {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 6px;
-        margin-top: 8px;
+        gap: 8px;
+        margin-top: 10px;
       }
 
       .flatwise-3d-control__buttons button {
-        padding: 7px 6px;
+        min-height: 32px;
+        padding: 7px 8px;
         border: 0;
         border-radius: 999px;
         background: #17212b;
         color: #fff;
         font: inherit;
         font-size: 11px;
+        line-height: 1.1;
+        white-space: nowrap;
         cursor: pointer;
       }
 
       .flatwise-3d-control__source,
       .flatwise-3d-control__status {
-        margin-top: 8px;
+        margin-top: 9px;
         color: #52606b;
         font-size: 11px;
         font-weight: 650;
+        line-height: 1.35;
+        white-space: normal;
+        overflow-wrap: anywhere;
       }
 
       .flatwise-3d-wall,
@@ -1060,9 +1182,13 @@
 
       @media (max-width: 720px) {
         .flatwise-3d-control {
-          width: 188px;
-          padding: 10px;
+          width: min(238px, calc(100vw - 28px));
+          padding: 12px;
           font-size: 12px;
+        }
+
+        .flatwise-3d-control__buttons {
+          grid-template-columns: 1fr;
         }
       }
     `;

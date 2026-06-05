@@ -98,6 +98,8 @@ const FLATWISE_CONFIG = {
     enabled: true,
     autoInjectPlugin: true,
     pluginPath: "js/flatwise-3d-buildings.js",
+    sunlightModeValue: "threeDShadow",
+    sunlightModeLabel: "3D / shadow",
 
     // Keep this higher than the parcel layer so the browser does not try to draw a whole city at once.
     minZoom: 17,
