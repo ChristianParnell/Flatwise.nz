@@ -109,19 +109,23 @@ const FLATWISE_CONFIG = {
     geometryPrecision: 6,
     cacheEntries: 18,
 
-    // A neutral basemap is swapped in only while 3D shadow cast is active.
-    // It makes the extruded roofs and shadow layer easier to read than the busy default OSM view.
-    shadowBaseTiles: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-    shadowBaseAttribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+    // An aerial basemap is swapped in only while 3D shadow cast is active.
+    // It makes the council/LINZ footprints easier to compare against real building positions than OSM roads/labels.
+    shadowBaseTiles: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    shadowBaseAttribution: "Tiles &copy; Esri — Sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
 
     // Height handling. Wellington uses WCC height fields where available; other cities use estimates.
-    defaultBuildingHeightMeters: 7.5,
-    fallbackHouseHeightMeters: 6.5,
+    defaultBuildingHeightMeters: 6.5,
+    fallbackHouseHeightMeters: 5.8,
     minHeightMeters: 3,
     maxHeightMeters: 85,
-    heightPixelScale: 0.48,
-    minExtrudePixels: 2,
-    maxExtrudePixels: 38,
+
+    // Keep geometry locked to the real footprint by default.
+    // Fake perspective extrusion can be re-enabled later, but it made shadows look offset on the map.
+    perspectiveExtrusion: false,
+    heightPixelScale: 0.32,
+    minExtrudePixels: 1,
+    maxExtrudePixels: 22,
 
     cityBounds: {
       wellington: { south: -41.37, west: 174.57, north: -41.12, east: 175.02 },
@@ -131,14 +135,17 @@ const FLATWISE_CONFIG = {
 
     // Shadow + occlusion settings.
     shadowDateTime: "",
-    shadowOpacity: 0.23,
-    shadowStrokeOpacity: 0.08,
-    maxShadowLengthMeters: 125,
+    shadowOpacity: 0.18,
+    shadowWallOpacityFactor: 0.72,
+    shadowStrokeOpacity: 0,
+    shadowColor: "#111827",
+    minShadowLengthMeters: 2,
+    maxShadowLengthMeters: 95,
     maxShadowPixels: 170,
-    roofOpacity: 0.94,
-    wallOpacityMin: 0.72,
+    roofOpacity: 0.98,
+    wallOpacityMin: 0.74,
     wallOpacityMax: 0.88,
-    shadowBlurPixels: 0.25,
+    shadowBlurPixels: 0.15,
     roofOccludesShadows: true
   }
 };

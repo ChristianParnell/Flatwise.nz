@@ -118,10 +118,10 @@
       container.setAttribute("aria-label", "3D shadow cast controls");
       container.innerHTML = `
         <div class="flatwise-3d-control__title">3D shadow cast</div>
-        <p class="flatwise-3d-control__note">Draws building roofs above their shadows and switches to a clean survey-style basemap while active.</p>
+        <p class="flatwise-3d-control__note">Anchors shadows to the real building footprint and switches to an aerial basemap while active.</p>
         <label class="flatwise-3d-check">
           <input type="checkbox" data-flatwise-3d-toggle checked />
-          <span>3D buildings</span>
+          <span>Building footprints</span>
         </label>
         <label class="flatwise-3d-check">
           <input type="checkbox" data-flatwise-shadow-toggle checked />
@@ -145,7 +145,7 @@
       state.control.shadowToggle = container.querySelector("[data-flatwise-shadow-toggle]");
       state.control.datetimeInput = container.querySelector("[data-flatwise-shadow-time]");
 
-      state.control.datetimeInput.value = toDateTimeLocalValue(settings.shadowDateTime) || getLocalDateTimeValue(new Date());
+      state.control.datetimeInput.value = toDateTimeLocalValue(settings.shadowDateTime) || getDefaultShadowDateTimeValue();
 
       state.control.modeToggle.addEventListener("change", () => {
         state.enabled3d = state.control.modeToggle.checked;
@@ -288,7 +288,7 @@
     renderBuildings();
 
     const count = state.features.length;
-    updateStatus(`${state.enabled3d ? "3D buildings" : "Buildings hidden"} + ${state.enabledShadows ? "shadow cast" : "shadows hidden"}. ${count} buildings drawn.`);
+    updateStatus(`${state.enabled3d ? "Building footprints" : "Buildings hidden"} + ${state.enabledShadows ? "anchored shadow cast" : "shadows hidden"}. ${count} buildings drawn.`);
     updateSource(`Source: ${state.sourceLabel}`);
   }
 
@@ -482,40 +482,63 @@
       }
 
       if (state.enabled3d) {
-        renderWalls(mainRing, extrusion, heightMeters);
+        if (Math.abs(extrusion.x) > 0.05 || Math.abs(extrusion.y) > 0.05) {
+          renderWalls(mainRing, extrusion, heightMeters);
+        }
         renderRoof(rings, extrusion, heightMeters);
       }
     }
   }
 
   function renderShadow(ring, heightMeters, sun) {
-    if (!ring || ring.length < 3) return;
+    const cleanRing = cleanClosedRing(ring);
+    if (!cleanRing.length || cleanRing.length < 3) return;
 
     const altitude = clamp(sun.altitude || 0.18, 0.08, 1.3);
-    const shadowMeters = clamp(heightMeters / Math.tan(altitude), 5, settings.maxShadowLengthMeters || 125);
-    const metersPerPixel = metersPerPixelAtLatitude(state.map.getCenter().lat, state.map.getZoom());
-    const pixelLength = clamp(shadowMeters / metersPerPixel, 6, settings.maxShadowPixels || 170);
+    const shadowMeters = clamp(
+      heightMeters / Math.tan(altitude),
+      settings.minShadowLengthMeters || 2,
+      settings.maxShadowLengthMeters || 95
+    );
 
-    const shadowBearing = sun.azimuth + Math.PI;
-    const dx = Math.sin(shadowBearing) * pixelLength;
-    const dy = -Math.cos(shadowBearing) * pixelLength;
+    const shadowBearing = normaliseRadians((sun.azimuth || 0) + Math.PI);
+    const shiftedRing = cleanRing.map((latLng) => offsetLatLngByMeters(latLng, shadowBearing, shadowMeters));
 
-    const basePoints = ring.map((latLng) => state.map.latLngToLayerPoint(latLng));
-    const shiftedPoints = basePoints.map((point) => L.point(point.x + dx, point.y + dy));
-    const shadowLatLngs = [...basePoints, ...shiftedPoints.reverse()].map((point) => state.map.layerPointToLatLng(point));
-
-    L.polygon(shadowLatLngs, {
+    const styleBase = {
       pane: "flatwiseShadowPane",
       className: "flatwise-3d-shadow",
       interactive: false,
-      stroke: true,
-      weight: 0.5,
-      color: "#1f2937",
-      opacity: settings.shadowStrokeOpacity ?? 0.08,
+      stroke: false,
       fill: true,
-      fillColor: "#0f172a",
-      fillOpacity: settings.shadowOpacity ?? 0.23
+      fillColor: settings.shadowColor || "#0f172a"
+    };
+
+    // Draw the projected roof footprint first. Keeping this as a separate polygon avoids the
+    // self-intersecting shapes that made non-rectangular buildings look like detached shadows.
+    L.polygon(closeRing(shiftedRing), {
+      ...styleBase,
+      className: "flatwise-3d-shadow flatwise-3d-shadow-roof",
+      fillOpacity: settings.shadowOpacity ?? 0.19
     }).addTo(state.layers.shadows);
+
+    // Then draw small edge strips from the real footprint to the projected footprint. This makes
+    // the shadow visibly start at the correct building instead of appearing as a random offset slab.
+    const stripOpacity = (settings.shadowOpacity ?? 0.19) * (settings.shadowWallOpacityFactor ?? 0.72);
+    for (let index = 0; index < cleanRing.length; index += 1) {
+      const nextIndex = (index + 1) % cleanRing.length;
+      const a = cleanRing[index];
+      const b = cleanRing[nextIndex];
+      const shiftedB = shiftedRing[nextIndex];
+      const shiftedA = shiftedRing[index];
+
+      if (!a || !b || !shiftedA || !shiftedB) continue;
+
+      L.polygon([a, b, shiftedB, shiftedA], {
+        ...styleBase,
+        className: "flatwise-3d-shadow flatwise-3d-shadow-strip",
+        fillOpacity: stripOpacity
+      }).addTo(state.layers.shadows);
+    }
   }
 
   function renderWalls(ring, extrusion, heightMeters) {
@@ -567,7 +590,7 @@
       opacity: 0.62,
       fill: true,
       fillColor: roofTone,
-      fillOpacity: settings.roofOpacity ?? 0.94
+      fillOpacity: settings.roofOpacity ?? 0.98
     }).addTo(state.layers.roofs);
   }
 
@@ -642,13 +665,17 @@
   }
 
   function getExtrusionOffset(heightMeters) {
+    // The old fake perspective roof offset made the building appear detached from its shadow.
+    // Keep the footprint locked to the true GIS geometry unless the config explicitly enables it.
+    if (settings.perspectiveExtrusion !== true) return L.point(0, 0);
+
     const pixels = clamp(
-      heightMeters * (settings.heightPixelScale || 0.48),
-      settings.minExtrudePixels || 2,
-      settings.maxExtrudePixels || 38
+      heightMeters * (settings.heightPixelScale || 0.32),
+      settings.minExtrudePixels || 1,
+      settings.maxExtrudePixels || 22
     );
 
-    return L.point(-pixels * 0.55, -pixels);
+    return L.point(-pixels * 0.42, -pixels * 0.72);
   }
 
   function getSelectedDate() {
@@ -868,6 +895,61 @@
   function getLocalDateTimeValue(date) {
     const pad = (value) => String(value).padStart(2, "0");
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function getDefaultShadowDateTimeValue() {
+    const date = new Date();
+    // Use noon as the default because it is the clearest first view and avoids odd dawn/dusk
+    // shadows that can look broken before the user chooses a specific time.
+    date.setHours(12, 0, 0, 0);
+    return getLocalDateTimeValue(date);
+  }
+
+  function cleanClosedRing(ring) {
+    if (!Array.isArray(ring)) return [];
+    const result = ring.filter((latLng) => Number.isFinite(latLng?.lat) && Number.isFinite(latLng?.lng));
+    if (result.length > 1) {
+      const first = result[0];
+      const last = result[result.length - 1];
+      if (Math.abs(first.lat - last.lat) < 1e-12 && Math.abs(first.lng - last.lng) < 1e-12) {
+        result.pop();
+      }
+    }
+    return result;
+  }
+
+  function closeRing(ring) {
+    if (!Array.isArray(ring) || !ring.length) return ring || [];
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    if (Math.abs(first.lat - last.lat) < 1e-12 && Math.abs(first.lng - last.lng) < 1e-12) return ring;
+    return [...ring, first];
+  }
+
+  function offsetLatLngByMeters(latLng, bearingRadians, distanceMeters) {
+    const earthRadiusMeters = 6378137;
+    const angularDistance = distanceMeters / earthRadiusMeters;
+    const lat1 = latLng.lat * Math.PI / 180;
+    const lng1 = latLng.lng * Math.PI / 180;
+    const sinLat1 = Math.sin(lat1);
+    const cosLat1 = Math.cos(lat1);
+    const sinDistance = Math.sin(angularDistance);
+    const cosDistance = Math.cos(angularDistance);
+
+    const lat2 = Math.asin(
+      sinLat1 * cosDistance + cosLat1 * sinDistance * Math.cos(bearingRadians)
+    );
+    const lng2 = lng1 + Math.atan2(
+      Math.sin(bearingRadians) * sinDistance * cosLat1,
+      cosDistance - sinLat1 * Math.sin(lat2)
+    );
+
+    return L.latLng(lat2 * 180 / Math.PI, lng2 * 180 / Math.PI);
+  }
+
+  function normaliseRadians(value) {
+    const full = Math.PI * 2;
+    return ((value % full) + full) % full;
   }
 
   function metersPerPixelAtLatitude(latitude, zoom) {

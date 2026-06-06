@@ -523,3 +523,215 @@ body.flatwise-3d-shadow-active .map-legend { right: auto; left: 1rem; }
   .toggle-row, .sunlight-control { width: 100%; justify-content: space-between; }
   .details-head, .panel-title-row, .form-actions { flex-direction: column; align-items: stretch; }
 }
+
+/* --- Flatwise review composer polish: clearer, less bubbly, easier to scan --- */
+.review-composer,
+.details-panel {
+  border-radius: 18px;
+  border: 1px solid rgba(16, 19, 18, 0.11);
+  background: rgba(255, 253, 247, 0.98);
+  box-shadow: 0 18px 44px rgba(17, 24, 39, 0.10);
+}
+
+.review-composer {
+  padding: clamp(1.15rem, 2.4vw, 1.7rem);
+}
+
+.review-composer .panel-title-row {
+  align-items: flex-start;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(16, 19, 18, 0.10);
+}
+
+.review-composer h3 {
+  margin-top: 0.15rem;
+  max-width: 38rem;
+  line-height: 1.08;
+}
+
+.review-target {
+  max-width: 46rem;
+  line-height: 1.45;
+}
+
+.save-pill,
+.rating-pill {
+  border-radius: 10px;
+  min-height: 32px;
+  padding: 0.42rem 0.68rem;
+}
+
+.review-form {
+  gap: 1.05rem;
+  margin-top: 1.1rem;
+}
+
+.form-grid {
+  gap: 0.85rem;
+}
+
+.field-block {
+  gap: 0.42rem;
+  color: #27312d;
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.field-block input,
+.field-block select,
+.field-block textarea {
+  border-radius: 12px;
+  border-color: rgba(16, 19, 18, 0.15);
+  background: #fffefa;
+  min-height: 46px;
+}
+
+.field-block textarea {
+  min-height: 155px;
+}
+
+.field-block input:focus,
+.field-block select:focus,
+.field-block textarea:focus {
+  border-color: rgba(31, 122, 79, 0.55);
+  box-shadow: 0 0 0 4px rgba(31, 122, 79, 0.11);
+  outline: none;
+}
+
+.rating-inputs {
+  display: grid;
+  gap: 0.72rem;
+}
+
+.rating-inputs label {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.rating-field {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.78fr) minmax(170px, 0.55fr) minmax(230px, 1fr);
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.82rem 0.9rem;
+  border: 1px solid rgba(16, 19, 18, 0.12);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 250, 240, 0.76));
+  box-shadow: 0 8px 22px rgba(17, 24, 39, 0.045);
+}
+
+.rating-field label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  color: #18231f;
+  font-size: 0.9rem;
+  font-weight: 900;
+  line-height: 1.22;
+}
+
+.rating-field output {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  min-width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 9px;
+  background: rgba(31, 122, 79, 0.13);
+  color: var(--green-dark);
+  font-weight: 950;
+}
+
+.rating-field input[type="range"] {
+  width: 100%;
+  min-width: 140px;
+  accent-color: var(--green);
+  margin: 0;
+}
+
+.rating-field small {
+  color: #596762;
+  line-height: 1.38;
+  font-size: 0.82rem;
+}
+
+.form-actions {
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 0.2rem;
+}
+
+.form-actions .secondary-button,
+.form-actions .primary-button {
+  border-radius: 12px;
+  min-height: 44px;
+}
+
+.fine-print {
+  padding: 0.85rem 0.95rem;
+  border: 1px solid rgba(16, 19, 18, 0.10);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.44);
+}
+
+/* --- More accurate 3D shadow visual hierarchy --- */
+.flatwise-3d-control {
+  border-radius: 16px;
+}
+
+.flatwise-3d-shadow {
+  mix-blend-mode: multiply;
+  shape-rendering: geometricPrecision;
+}
+
+.flatwise-3d-shadow-roof {
+  filter: blur(0.2px);
+}
+
+.flatwise-3d-roof {
+  paint-order: stroke fill;
+  shape-rendering: geometricPrecision;
+}
+
+.flatwise-3d-wall {
+  shape-rendering: geometricPrecision;
+}
+
+body.flatwise-shadow-basemap-active .leaflet-tile-pane {
+  filter: saturate(0.78) contrast(0.96) brightness(1.04);
+}
+
+@media (max-width: 1100px) {
+  .rating-field {
+    grid-template-columns: minmax(170px, 0.9fr) minmax(170px, 0.65fr);
+  }
+
+  .rating-field small {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .review-composer,
+  .details-panel {
+    border-radius: 16px;
+  }
+
+  .rating-field {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+  }
+
+  .rating-field label {
+    align-items: flex-start;
+  }
+
+  .form-actions .secondary-button,
+  .form-actions .primary-button {
+    width: 100%;
+  }
+}

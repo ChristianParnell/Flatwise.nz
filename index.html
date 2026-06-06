@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://services.arcgis.com" />
   <link rel="preconnect" href="https://nominatim.openstreetmap.org" />
   <link rel="preconnect" href="https://basemaps.cartocdn.com" />
+  <link rel="preconnect" href="https://server.arcgisonline.com" />
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -115,7 +116,7 @@
               </select>
             </label>
 
-            <p>Only the 3D shadow-cast mode is kept. It uses council/LINZ building footprints, real Wellington height fields where available, and a neutral survey-style basemap while active.</p>
+            <p>Only the 3D shadow-cast mode is kept. It uses council/LINZ building footprints, real Wellington height fields where available, and an aerial basemap while active so the footprints are easier to compare against real buildings.</p>
           </div>
 
           <div class="map-wrap">
@@ -243,7 +244,7 @@
         <div class="steps-grid">
           <article><span>01</span><h3>Load LINZ polygons</h3><p>At close zoom levels, the map asks the official property boundary layer for the current view.</p></article>
           <article><span>02</span><h3>Select the property</h3><p>Clicking a polygon or marker locks the review to that selected property boundary.</p></article>
-          <article><span>03</span><h3>Cast 3D shadows</h3><p>The 3D mode draws nearby building roofs above their shadows, so the shadow layer reads more cleanly on the map.</p></article>
+          <article><span>03</span><h3>Cast 3D shadows</h3><p>The 3D mode anchors building roofs to their real GIS footprints and casts shadows from those footprints, so the layer reads more cleanly on the map.</p></article>
           <article><span>04</span><h3>Save local reviews</h3><p>Tenant notes and scores stay in localStorage while the app remains a safe prototype.</p></article>
         </div>
       </section>
