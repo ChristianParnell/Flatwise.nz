@@ -4,12 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Flatwise.nz — Tenant-first property reviews</title>
-  <meta name="description" content="Flatwise is a tenant-first map prototype for selecting NZ properties, viewing official LINZ boundaries, estimating sunlight, and writing local rental reviews." />
-
+  <meta name="description" content="Flatwise is a tenant-first map prototype for selecting NZ properties, viewing official LINZ boundaries, checking 3D shadow cast, and writing local rental reviews." />
   <link rel="preconnect" href="https://tile.openstreetmap.org" />
   <link rel="preconnect" href="https://services.arcgis.com" />
   <link rel="preconnect" href="https://nominatim.openstreetmap.org" />
-
+  <link rel="preconnect" href="https://basemaps.cartocdn.com" />
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -41,7 +40,8 @@
         <div class="hero-copy">
           <p class="eyebrow">Tenant-first property reviews</p>
           <h1>Click the actual property. Review the actual flat.</h1>
-          <p class="hero-text">Flatwise combines official property boundary lookup with local review tools. Select a flat, highlight the parcel, test estimated sunlight, and score the rental experience with clear 1–10 sliders.</p>
+          <p class="hero-text">Flatwise combines official property boundary lookup with local review tools. Select a flat, highlight the parcel, check the 3D shadow cast, and score the rental experience with clear 1–10 sliders.</p>
+
           <div class="hero-actions">
             <a class="primary-button large" href="#mapArea">Open Wellington map</a>
             <button id="heroWellingtonButton" class="secondary-button large" type="button">Jump to Wellington</button>
@@ -56,9 +56,10 @@
             <span class="mini-sun"></span>
             <span class="mini-pin"></span>
           </div>
+
           <dl class="signal-grid">
             <div><dt>Boundary source</dt><dd>LINZ official</dd></div>
-            <div><dt>Sun mode</dt><dd>Estimated</dd></div>
+            <div><dt>3D mode</dt><dd>Shadow cast</dd></div>
             <div><dt>Review scale</dt><dd>1–10</dd></div>
             <div><dt>Hosting</dt><dd>Pages-ready</dd></div>
           </dl>
@@ -68,8 +69,8 @@
       <section id="mapArea" class="map-section">
         <div class="section-header compact">
           <p class="eyebrow">Select a rental</p>
-          <h2>LINZ boundaries with detailed estimated sunlight modes.</h2>
-          <p>Click a visible property polygon, a demo flat marker, or search an address. After a property is selected, the sunlight overlay can estimate sun exposure directly over the parcel.</p>
+          <h2>LINZ boundaries with one clean 3D shadow-cast mode.</h2>
+          <p>Click a visible property polygon, a demo flat marker, or search an address. After a property is selected, use the single 3D shadow-cast mode for a clearer rental-focused daylight check.</p>
         </div>
 
         <div class="map-panel" aria-label="Flatwise property selector">
@@ -107,35 +108,34 @@
             </label>
 
             <label class="sunlight-control" for="sunlightMode">
-              <span>Sunlight overlay</span>
+              <span>Shadow mode</span>
               <select id="sunlightMode" name="sunlightMode">
                 <option value="off">Off</option>
-                <option value="heat">Sun heatmap</option>
-                <option value="shadow">Shadow cast</option>
-                <option value="winter">Winter sunlight</option>
-                <option value="summer">Summer sunlight</option>
-                <option value="daily">Daily average estimate</option>
+                <option value="threeDShadow">3D shadow cast</option>
               </select>
             </label>
 
-            <p>Sunlight is an estimated prototype layer. It uses the selected property boundary, approximate sun position, and visible building outlines where available.</p>
+            <p>Only the 3D shadow-cast mode is kept. It uses council/LINZ building footprints, real Wellington height fields where available, and a neutral survey-style basemap while active.</p>
           </div>
 
           <div class="map-wrap">
             <div id="map" role="application" aria-label="Map for selecting flat properties"></div>
             <div id="tileLoading" class="tile-loading" aria-hidden="true">Loading map tiles</div>
-            <div id="sunlightReadout" class="sunlight-readout hidden" aria-live="polite">
-              <span class="muted-label">Estimated sunlight</span>
+
+            <div id="sunlightReadout" class="sunlight-readout hidden" aria-hidden="true">
+              <span class="muted-label">3D shadow cast</span>
               <strong id="sunlightTitle">Off</strong>
-              <p id="sunlightText">Select a property and choose a sunlight mode.</p>
+              <p id="sunlightText">Select 3D shadow cast to draw shadows from nearby buildings.</p>
               <div class="sunlight-scale" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
             </div>
+
             <div class="map-legend" aria-label="Map legend">
               <span><i class="legend-line property"></i> LINZ property boundary</span>
               <span><i class="legend-line selected"></i> Selected property</span>
               <span><i class="legend-line building"></i> Building outline</span>
-              <span><i class="legend-dot sun"></i> Sunlight estimate</span>
+              <span><i class="legend-dot sun"></i> 3D shadow cast</span>
             </div>
+
             <p id="mapStatus" class="map-status">Loading map…</p>
           </div>
         </div>
@@ -150,7 +150,6 @@
 
             <div id="detailsContent" class="hidden">
               <div id="photoFrame" class="photo-frame"></div>
-
               <div class="details-head">
                 <div>
                   <span id="selectedType" class="muted-label">Selected property</span>
@@ -179,6 +178,7 @@
                 <h4><span id="reviewCount">0</span> review(s)</h4>
                 <button id="inlineReviewButton" class="text-button" type="button">Jump to review form</button>
               </div>
+
               <div id="reviewList" class="review-list"></div>
             </div>
           </section>
@@ -220,7 +220,7 @@
               <div id="ratingInputs" class="rating-inputs"></div>
 
               <label class="field-block" for="reviewNote">Your written review
-                <textarea id="reviewNote" name="note" maxlength="900" placeholder="What should future tenants know about warmth, dampness, repairs, pressure, noise, safety, or the sunlight in this place?"></textarea>
+                <textarea id="reviewNote" name="note" maxlength="900" placeholder="What should future tenants know about warmth, dampness, repairs, pressure, noise, safety, or sunlight in this place?"></textarea>
               </label>
 
               <div class="form-actions">
@@ -237,12 +237,13 @@
       <section id="how" class="how-section">
         <div class="section-header">
           <p class="eyebrow">How this prototype works</p>
-          <h2>Boundary first. Sunlight second. Review third.</h2>
+          <h2>Boundary first. Shadow check second. Review third.</h2>
         </div>
+
         <div class="steps-grid">
           <article><span>01</span><h3>Load LINZ polygons</h3><p>At close zoom levels, the map asks the official property boundary layer for the current view.</p></article>
           <article><span>02</span><h3>Select the property</h3><p>Clicking a polygon or marker locks the review to that selected property boundary.</p></article>
-          <article><span>03</span><h3>Estimate sunlight</h3><p>The overlay samples points inside the parcel and applies approximate sun angle plus nearby building shadows.</p></article>
+          <article><span>03</span><h3>Cast 3D shadows</h3><p>The 3D mode draws nearby building roofs above their shadows, so the shadow layer reads more cleanly on the map.</p></article>
           <article><span>04</span><h3>Save local reviews</h3><p>Tenant notes and scores stay in localStorage while the app remains a safe prototype.</p></article>
         </div>
       </section>

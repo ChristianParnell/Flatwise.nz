@@ -26,12 +26,12 @@ const FLATWISE_CONFIG = {
     primaryParcelsFallback: "https://services.arcgis.com/xdsHIIxuCWByZiCB/ArcGIS/rest/services/LINZ_NZ_Primary_Parcels/FeatureServer/0/query",
     buildingOutlines: "https://services.arcgis.com/xdsHIIxuCWByZiCB/ArcGIS/rest/services/LINZ_NZ_Building_Outlines/FeatureServer/0/query",
 
-    // Wellington City Council has real approximate building-height fields.
-    // Used automatically when the map is inside Wellington city.
+    // Wellington City Council has useful approximate building-height fields.
+    // The 3D shadow plug-in prefers this source while the map is inside Wellington.
     wccBuildingFootprints: "https://gis.wcc.govt.nz/arcgis/rest/services/PropertyAndBoundaries/BuildingFootprints/MapServer/0/query",
     wccBuildingFootprintsOutline: "https://gis.wcc.govt.nz/arcgis/rest/services/PropertyAndBoundaries/BuildingFootprints/MapServer/1/query",
 
-    // Optional coarse terrain shade source. The public API is free but should be sampled lightly.
+    // Kept for future use, but the current interface no longer exposes terrain shade.
     terrainElevation: "https://api.opentopodata.org/v1/nzdem8m"
   },
 
@@ -70,84 +70,83 @@ const FLATWISE_CONFIG = {
     placeholderHeading: 0
   },
 
+  // The old 2D sunlight layer is intentionally disabled in the UI.
+  // app.js may still create its hidden canvas, so CSS/config cleanup keeps it invisible.
   sunlight: {
     defaultMode: "off",
-
-    // Performance-first sunlight settings. These keep the daylight overlay live
-    // without forcing the browser to calculate thousands of shadow intersections.
-    resolutionScale: 0.46,
-    fastGridStepPixels: 15,
-    maxSunSamples: 3,
-    maxBuildingFeatures: 55,
-    maxShadowPolygons: 28,
-    shadowSearchPaddingPixels: 170,
+    disabled: true,
+    resolutionScale: 0.38,
+    fastGridStepPixels: 18,
+    maxSunSamples: 1,
+    maxBuildingFeatures: 0,
+    maxShadowPolygons: 0,
+    shadowSearchPaddingPixels: 0,
     redrawWhileMoving: false,
     skipDuplicateDraws: true,
-
-    // Visual and estimation settings.
     defaultBuildingHeightMeters: 8,
-    maxShadowLengthMeters: 120,
-    propertyPaddingPixels: 16,
-    shadowOpacity: 0.22,
-    shadowWashOpacity: 0.12,
-    heatOpacity: 0.62,
-    heatUsesShadows: true
+    maxShadowLengthMeters: 0,
+    propertyPaddingPixels: 0,
+    shadowOpacity: 0,
+    shadowWashOpacity: 0,
+    heatOpacity: 0,
+    heatUsesShadows: false
   },
 
   threeD: {
     enabled: true,
     autoInjectPlugin: true,
     pluginPath: "js/flatwise-3d-buildings.js",
+    sunlightModeSelectId: "sunlightMode",
     sunlightModeValue: "threeDShadow",
-    sunlightModeLabel: "3D / shadow",
+    sunlightModeLabel: "3D shadow cast",
 
-    // Keep this higher than the parcel layer so the browser does not try to draw a whole city at once.
+    // The 3D layer is kept fairly tight so the browser does not try to draw a whole city at once.
     minZoom: 17,
-    refreshDebounceMs: 340,
-    maxQueryAreaDegrees: 0.018,
-    maxBuildingFeatures: 260,
-    resultRecordCount: 500,
+    refreshDebounceMs: 300,
+    maxQueryAreaDegrees: 0.016,
+    maxBuildingFeatures: 240,
+    resultRecordCount: 450,
     geometryPrecision: 6,
-    cacheEntries: 16,
+    cacheEntries: 18,
 
-    // Height handling.
+    // A neutral basemap is swapped in only while 3D shadow cast is active.
+    // It makes the extruded roofs and shadow layer easier to read than the busy default OSM view.
+    shadowBaseTiles: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+    shadowBaseAttribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+
+    // Height handling. Wellington uses WCC height fields where available; other cities use estimates.
     defaultBuildingHeightMeters: 7.5,
     fallbackHouseHeightMeters: 6.5,
     minHeightMeters: 3,
     maxHeightMeters: 85,
-    heightPixelScale: 0.42,
+    heightPixelScale: 0.48,
     minExtrudePixels: 2,
-    maxExtrudePixels: 34,
+    maxExtrudePixels: 38,
 
-    // Wellington gets real approx_hei from WCC. Other cities use LINZ footprints with estimated heights.
     cityBounds: {
       wellington: { south: -41.37, west: 174.57, north: -41.12, east: 175.02 },
       auckland: { south: -37.10, west: 174.45, north: -36.55, east: 175.05 },
       christchurch: { south: -43.72, west: 172.35, north: -43.35, east: 172.85 }
     },
 
-    // Shadow settings. The control can override this with its date/time picker.
+    // Shadow + occlusion settings.
     shadowDateTime: "",
-    winterPresetDateTime: "2026-06-21T12:00",
-    summerPresetDateTime: "2026-12-21T13:00",
-    shadowOpacity: 0.28,
-    maxShadowLengthMeters: 180,
-    maxShadowPixels: 240,
-
-    // Coarse terrain relief. This samples a small grid only when the user turns terrain on.
-    terrainEnabledDefault: false,
-    terrainMinZoom: 16,
-    terrainGridSize: 5,
-    terrainMaxPoints: 36,
-    terrainRefreshMinutes: 180,
-    terrainOpacity: 0.26
+    shadowOpacity: 0.23,
+    shadowStrokeOpacity: 0.08,
+    maxShadowLengthMeters: 125,
+    maxShadowPixels: 170,
+    roofOpacity: 0.94,
+    wallOpacityMin: 0.72,
+    wallOpacityMax: 0.88,
+    shadowBlurPixels: 0.25,
+    roofOccludesShadows: true
   }
 };
 
 window.FLATWISE_CONFIG = FLATWISE_CONFIG;
 
 // Capture the Leaflet map that app.js creates without editing app.js itself.
-// This lets optional plug-ins attach layers safely while the main Flatwise code stays unchanged.
+// Optional plug-ins can then attach layers safely while the main Flatwise code stays unchanged.
 (function installFlatwiseMapHook() {
   if (window.__flatwiseMapHookInstalled) return;
   window.__flatwiseMapHookInstalled = true;
@@ -157,14 +156,15 @@ window.FLATWISE_CONFIG = FLATWISE_CONFIG;
     if (!window.L || !window.L.map || window.L.map.__flatwiseHooked) return false;
 
     const originalMapFactory = window.L.map;
-
     window.L.map = function flatwiseCapturedLeafletMapFactory(...args) {
       const map = originalMapFactory.apply(this, args);
+
       if (!window.FLATWISE_MAPS.includes(map)) {
         window.FLATWISE_MAPS.push(map);
         window.FlatwiseMap = map;
         window.dispatchEvent(new CustomEvent("flatwise:map-ready", { detail: { map } }));
       }
+
       return map;
     };
 
@@ -178,12 +178,7 @@ window.FLATWISE_CONFIG = FLATWISE_CONFIG;
   }
 })();
 
-
-
 // Keep selected properties as boundary highlights only.
-// The main app creates a small centre marker after selecting a property. It can look like
-// a flashing square/pin during focus animations, so this hides that marker and removes
-// browser focus outlines while preserving the actual selected parcel boundary layer.
 (function installFlatwiseSelectionHighlightOnlyStyle() {
   if (document.getElementById("flatwise-selection-highlight-only-style")) return;
 
@@ -215,8 +210,62 @@ window.FLATWISE_CONFIG = FLATWISE_CONFIG;
   document.head.appendChild(style);
 })();
 
-// Auto-load the optional 3D/shadow plug-in. No index.html change is required as long as
-// this config.js file is loaded before js/app.js, which the current Flatwise page already does.
+// Remove the old sunlight choices and hide the beige sunlight readout/canvas even if an older HTML file is cached.
+(function installFlatwiseSunlightModeCleanup() {
+  const THREE_D_VALUE = FLATWISE_CONFIG.threeD.sunlightModeValue;
+  const THREE_D_LABEL = FLATWISE_CONFIG.threeD.sunlightModeLabel;
+
+  const styleId = "flatwise-old-sunlight-cleanup-style";
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      #sunlightReadout,
+      .sunlight-readout,
+      .leaflet-sunlight-pane {
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  const cleanup = () => {
+    const select = document.getElementById(FLATWISE_CONFIG.threeD.sunlightModeSelectId || "sunlightMode");
+    if (select) {
+      const currentValue = select.value === THREE_D_VALUE ? THREE_D_VALUE : "off";
+      select.innerHTML = "";
+
+      const offOption = document.createElement("option");
+      offOption.value = "off";
+      offOption.textContent = "Off";
+      select.appendChild(offOption);
+
+      const threeDOption = document.createElement("option");
+      threeDOption.value = THREE_D_VALUE;
+      threeDOption.textContent = THREE_D_LABEL;
+      select.appendChild(threeDOption);
+
+      select.value = currentValue;
+    }
+
+    const readout = document.getElementById("sunlightReadout");
+    if (readout) {
+      readout.classList.add("hidden");
+      readout.setAttribute("aria-hidden", "true");
+    }
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", cleanup, { once: true });
+  } else {
+    cleanup();
+  }
+})();
+
+// Auto-load the 3D/shadow plug-in.
 (function autoLoadFlatwise3DPlugin() {
   const settings = window.FLATWISE_CONFIG?.threeD;
   if (!settings?.enabled || !settings?.autoInjectPlugin) return;
