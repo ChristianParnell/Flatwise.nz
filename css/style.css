@@ -334,6 +334,7 @@ img { max-width: 100%; }
 .legend-line.building { color: #52606f; }
 .legend-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
 .legend-dot.sun { background: rgba(15, 23, 42, 0.34); box-shadow: 0 0 0 5px rgba(15, 23, 42, 0.08); }
+.legend-dot.satellite { background: linear-gradient(135deg, #7893a7, #d4c398); box-shadow: 0 0 0 5px rgba(120, 147, 167, 0.12); }
 
 .map-status {
   position: absolute;
@@ -383,7 +384,7 @@ img { max-width: 100%; }
 .flatwise-3d-roof { paint-order: stroke fill; }
 .flatwise-3d-wall { paint-order: stroke fill; }
 .flatwise-3d-shadow { mix-blend-mode: multiply; }
-body.flatwise-shadow-basemap-active #map { background: #eef1ed; }
+body.flatwise-satellite-basemap-active #map { background: #eef1ed; }
 body.flatwise-3d-shadow-active .map-legend { right: auto; left: 1rem; }
 
 .details-grid {
@@ -701,7 +702,7 @@ body.flatwise-3d-shadow-active .map-legend { right: auto; left: 1rem; }
   shape-rendering: geometricPrecision;
 }
 
-body.flatwise-shadow-basemap-active .leaflet-tile-pane {
+body.flatwise-satellite-basemap-active .leaflet-tile-pane {
   filter: saturate(0.78) contrast(0.96) brightness(1.04);
 }
 

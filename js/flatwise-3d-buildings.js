@@ -11,6 +11,8 @@
 
   const THREE_D_MODE_VALUE = settings.sunlightModeValue || "threeDShadow";
   const THREE_D_MODE_LABEL = settings.sunlightModeLabel || "3D shadow cast";
+  const SATELLITE_MODE_VALUE = settings.satelliteModeValue || "satelliteView";
+  const SATELLITE_MODE_LABEL = settings.satelliteModeLabel || "Satellite view";
   const SELECT_ID = settings.sunlightModeSelectId || "sunlightMode";
 
   const state = {
@@ -39,6 +41,92 @@
       datetimeInput: null
     }
   };
+
+  class UnifiedShadowCanvasLayer extends L.Layer {
+    constructor(options = {}) {
+      super(options);
+      this.options = { pane: "flatwiseShadowPane", ...options };
+      this._shapes = [];
+      this._canvas = null;
+      this._ctx = null;
+      this._map = null;
+      this._frame = 0;
+    }
+
+    onAdd(map) {
+      this._map = map;
+      this._canvas = L.DomUtil.create("canvas", "flatwise-unified-shadow-canvas");
+      this._ctx = this._canvas.getContext("2d");
+      map.getPane(this.options.pane || "overlayPane").appendChild(this._canvas);
+      map.on("move zoom resize zoomend viewreset", this._scheduleDraw, this);
+      this._resetCanvas();
+    }
+
+    onRemove(map) {
+      map.off("move zoom resize zoomend viewreset", this._scheduleDraw, this);
+      if (this._canvas?.parentNode) this._canvas.parentNode.removeChild(this._canvas);
+      if (this._frame) window.cancelAnimationFrame(this._frame);
+      this._frame = 0;
+      this._canvas = null;
+      this._ctx = null;
+      this._map = null;
+    }
+
+    setShapes(shapes) {
+      this._shapes = Array.isArray(shapes) ? shapes : [];
+      this._scheduleDraw();
+    }
+
+    _scheduleDraw() {
+      if (!this._map || !this._canvas) return;
+      if (this._frame) window.cancelAnimationFrame(this._frame);
+      this._frame = window.requestAnimationFrame(() => {
+        this._frame = 0;
+        this._resetCanvas();
+      });
+    }
+
+    _resetCanvas() {
+      if (!this._map || !this._canvas || !this._ctx) return;
+
+      const size = this._map.getSize();
+      const pixelRatio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      const topLeft = this._map.containerPointToLayerPoint([0, 0]);
+
+      this._canvas.width = Math.round(size.x * pixelRatio);
+      this._canvas.height = Math.round(size.y * pixelRatio);
+      this._canvas.style.width = `${size.x}px`;
+      this._canvas.style.height = `${size.y}px`;
+      L.DomUtil.setPosition(this._canvas, topLeft);
+
+      const ctx = this._ctx;
+      ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      ctx.clearRect(0, 0, size.x, size.y);
+
+      if (!this._shapes.length) return;
+
+      const fillOpacity = clamp(settings.shadowOpacity ?? 0.18, 0, 1);
+      ctx.fillStyle = colorToRgba(settings.shadowColor || "#111827", fillOpacity);
+      ctx.beginPath();
+
+      for (const shape of this._shapes) {
+        const points = (shape || [])
+          .map((latLng) => this._map.latLngToLayerPoint(latLng).subtract(topLeft))
+          .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+
+        if (points.length < 3) continue;
+        const clockwisePoints = ensureClockwiseScreenPoints(points);
+        ctx.moveTo(clockwisePoints[0].x, clockwisePoints[0].y);
+        for (let index = 1; index < clockwisePoints.length; index += 1) {
+          ctx.lineTo(clockwisePoints[index].x, clockwisePoints[index].y);
+        }
+        ctx.closePath();
+      }
+
+      // One fill call means overlapping building shadows do not stack darker on each other.
+      ctx.fill("nonzero");
+    }
+  }
 
   waitForFlatwiseMap();
 
@@ -98,7 +186,7 @@
   }
 
   function createLayers() {
-    state.layers.shadows = L.layerGroup();
+    state.layers.shadows = new UnifiedShadowCanvasLayer({ pane: "flatwiseShadowPane" });
     state.layers.walls = L.layerGroup();
     state.layers.roofs = L.layerGroup();
   }
@@ -118,7 +206,7 @@
       container.setAttribute("aria-label", "3D shadow cast controls");
       container.innerHTML = `
         <div class="flatwise-3d-control__title">3D shadow cast</div>
-        <p class="flatwise-3d-control__note">Anchors shadows to the real building footprint and switches to an aerial basemap while active.</p>
+        <p class="flatwise-3d-control__note">Anchors shadows to the real building footprint. Satellite view is a separate map mode.</p>
         <label class="flatwise-3d-check">
           <input type="checkbox" data-flatwise-3d-toggle checked />
           <span>Building footprints</span>
@@ -186,7 +274,7 @@
   }
 
   function keepOnly3DShadowOption(select) {
-    const previousValue = select.value === THREE_D_MODE_VALUE ? THREE_D_MODE_VALUE : "off";
+    const previousValue = [THREE_D_MODE_VALUE, SATELLITE_MODE_VALUE].includes(select.value) ? select.value : "off";
     select.innerHTML = "";
 
     const offOption = document.createElement("option");
@@ -199,6 +287,11 @@
     threeDOption.textContent = THREE_D_MODE_LABEL;
     select.appendChild(threeDOption);
 
+    const satelliteOption = document.createElement("option");
+    satelliteOption.value = SATELLITE_MODE_VALUE;
+    satelliteOption.textContent = SATELLITE_MODE_LABEL;
+    select.appendChild(satelliteOption);
+
     select.value = previousValue;
   }
 
@@ -206,15 +299,20 @@
     cleanupLegacySunlightUI();
 
     const select = document.getElementById(SELECT_ID);
-    const shouldActivate = !select || select.value === THREE_D_MODE_VALUE;
+    const selectedValue = select ? select.value : THREE_D_MODE_VALUE;
+    const shouldActivate3D = selectedValue === THREE_D_MODE_VALUE || !select;
+    const shouldActivateSatellite = selectedValue === SATELLITE_MODE_VALUE;
 
-    state.control.container?.classList.toggle("is-visible", shouldActivate);
-    document.body.classList.toggle("flatwise-3d-shadow-active", shouldActivate);
+    state.control.container?.classList.toggle("is-visible", shouldActivate3D);
+    document.body.classList.toggle("flatwise-3d-shadow-active", shouldActivate3D);
+    document.body.classList.toggle("flatwise-satellite-view-active", shouldActivateSatellite);
 
-    if (shouldActivate) {
+    if (shouldActivate3D) {
+      setSatelliteBasemap(false);
       activate3DShadowMode();
     } else {
       deactivate3DShadowMode();
+      setSatelliteBasemap(shouldActivateSatellite);
     }
   }
 
@@ -223,7 +321,6 @@
     state.enabled3d = state.control.modeToggle ? state.control.modeToggle.checked : true;
     state.enabledShadows = state.control.shadowToggle ? state.control.shadowToggle.checked : true;
 
-    setShadowSurveyBasemap(true);
     toggleVisualLayers();
     scheduleRefresh(true);
   }
@@ -232,7 +329,6 @@
     state.active = false;
     state.enabled3d = false;
     state.enabledShadows = false;
-    setShadowSurveyBasemap(false);
     clearVisualLayers();
     toggleVisualLayers();
     updateStatus("3D shadow cast is off.");
@@ -468,6 +564,7 @@
     });
 
     const sun = getSunPosition(getSelectedDate(), state.map.getCenter().lat, state.map.getCenter().lng);
+    const unifiedShadowShapes = [];
 
     for (const feature of sortedFeatures) {
       const rings = getFeatureLatLngRings(feature);
@@ -478,7 +575,7 @@
       const mainRing = rings[0];
 
       if (state.enabledShadows) {
-        renderShadow(mainRing, heightMeters, sun);
+        collectShadowShapes(mainRing, heightMeters, sun, unifiedShadowShapes);
       }
 
       if (state.enabled3d) {
@@ -488,9 +585,13 @@
         renderRoof(rings, extrusion, heightMeters);
       }
     }
+
+    if (state.enabledShadows && typeof state.layers.shadows?.setShapes === "function") {
+      state.layers.shadows.setShapes(unifiedShadowShapes);
+    }
   }
 
-  function renderShadow(ring, heightMeters, sun) {
+  function collectShadowShapes(ring, heightMeters, sun, targetShapes) {
     const cleanRing = cleanClosedRing(ring);
     if (!cleanRing.length || cleanRing.length < 3) return;
 
@@ -504,26 +605,10 @@
     const shadowBearing = normaliseRadians((sun.azimuth || 0) + Math.PI);
     const shiftedRing = cleanRing.map((latLng) => offsetLatLngByMeters(latLng, shadowBearing, shadowMeters));
 
-    const styleBase = {
-      pane: "flatwiseShadowPane",
-      className: "flatwise-3d-shadow",
-      interactive: false,
-      stroke: false,
-      fill: true,
-      fillColor: settings.shadowColor || "#0f172a"
-    };
+    // Store all projected roof shapes and connecting edge strips, then draw them in one canvas fill.
+    // That makes the shadows behave like a union mask: where shadows overlap, they stay one tint.
+    targetShapes.push(closeRing(shiftedRing));
 
-    // Draw the projected roof footprint first. Keeping this as a separate polygon avoids the
-    // self-intersecting shapes that made non-rectangular buildings look like detached shadows.
-    L.polygon(closeRing(shiftedRing), {
-      ...styleBase,
-      className: "flatwise-3d-shadow flatwise-3d-shadow-roof",
-      fillOpacity: settings.shadowOpacity ?? 0.19
-    }).addTo(state.layers.shadows);
-
-    // Then draw small edge strips from the real footprint to the projected footprint. This makes
-    // the shadow visibly start at the correct building instead of appearing as a random offset slab.
-    const stripOpacity = (settings.shadowOpacity ?? 0.19) * (settings.shadowWallOpacityFactor ?? 0.72);
     for (let index = 0; index < cleanRing.length; index += 1) {
       const nextIndex = (index + 1) % cleanRing.length;
       const a = cleanRing[index];
@@ -532,12 +617,7 @@
       const shiftedA = shiftedRing[index];
 
       if (!a || !b || !shiftedA || !shiftedB) continue;
-
-      L.polygon([a, b, shiftedB, shiftedA], {
-        ...styleBase,
-        className: "flatwise-3d-shadow flatwise-3d-shadow-strip",
-        fillOpacity: stripOpacity
-      }).addTo(state.layers.shadows);
+      targetShapes.push(closeRing([a, b, shiftedB, shiftedA]));
     }
   }
 
@@ -595,7 +675,8 @@
   }
 
   function clearVisualLayers() {
-    state.layers.shadows?.clearLayers();
+    if (typeof state.layers.shadows?.setShapes === "function") state.layers.shadows.setShapes([]);
+    else state.layers.shadows?.clearLayers?.();
     state.layers.walls?.clearLayers();
     state.layers.roofs?.clearLayers();
   }
@@ -665,8 +746,8 @@
   }
 
   function getExtrusionOffset(heightMeters) {
-    // The old fake perspective roof offset made the building appear detached from its shadow.
-    // Keep the footprint locked to the true GIS geometry unless the config explicitly enables it.
+    // The base footprint remains locked to the true GIS geometry. This offset only lifts the roof
+    // for a lightweight 2.5D building effect; shadows are still cast from the real footprint.
     if (settings.perspectiveExtrusion !== true) return L.point(0, 0);
 
     const pixels = clamp(
@@ -793,14 +874,16 @@
       latLng.lng <= namedBounds.east;
   }
 
-  function setShadowSurveyBasemap(shouldUseShadowBasemap) {
-    const tileUrl = settings.shadowBaseTiles;
+  function setSatelliteBasemap(shouldUseSatelliteBasemap) {
+    const tileUrl = settings.satelliteBaseTiles || settings.shadowBaseTiles;
     if (!state.map || !tileUrl) return;
 
     const baseLayer = getPrimaryTileLayer();
     if (!baseLayer) return;
 
-    if (shouldUseShadowBasemap && !state.basemapSwapped) {
+    const attribution = settings.satelliteBaseAttribution || settings.shadowBaseAttribution;
+
+    if (shouldUseSatelliteBasemap && !state.basemapSwapped) {
       state.originalTileState = {
         layer: baseLayer,
         url: baseLayer._url,
@@ -808,20 +891,20 @@
       };
 
       baseLayer.setUrl(tileUrl, false);
-      if (settings.shadowBaseAttribution && state.map.attributionControl) {
-        state.map.attributionControl.addAttribution(settings.shadowBaseAttribution);
+      if (attribution && state.map.attributionControl) {
+        state.map.attributionControl.addAttribution(attribution);
       }
       state.basemapSwapped = true;
-      document.body.classList.add("flatwise-shadow-basemap-active");
+      document.body.classList.add("flatwise-satellite-basemap-active");
     }
 
-    if (!shouldUseShadowBasemap && state.basemapSwapped && state.originalTileState?.layer) {
+    if (!shouldUseSatelliteBasemap && state.basemapSwapped && state.originalTileState?.layer) {
       state.originalTileState.layer.setUrl(state.originalTileState.url, false);
-      if (settings.shadowBaseAttribution && state.map.attributionControl) {
-        state.map.attributionControl.removeAttribution(settings.shadowBaseAttribution);
+      if (attribution && state.map.attributionControl) {
+        state.map.attributionControl.removeAttribution(attribution);
       }
       state.basemapSwapped = false;
-      document.body.classList.remove("flatwise-shadow-basemap-active");
+      document.body.classList.remove("flatwise-satellite-basemap-active");
     }
   }
 
@@ -870,6 +953,12 @@
         mix-blend-mode: normal;
       }
 
+      .flatwise-unified-shadow-canvas {
+        position: absolute;
+        pointer-events: none;
+        filter: blur(${settings.shadowBlurPixels ?? 0.25}px);
+      }
+
       .flatwise-3d-shadow {
         filter: blur(${settings.shadowBlurPixels ?? 0.25}px);
       }
@@ -903,6 +992,37 @@
     // shadows that can look broken before the user chooses a specific time.
     date.setHours(12, 0, 0, 0);
     return getLocalDateTimeValue(date);
+  }
+
+  function ensureClockwiseScreenPoints(points) {
+    return screenSignedArea(points) < 0 ? [...points].reverse() : points;
+  }
+
+  function screenSignedArea(points) {
+    let area = 0;
+    for (let index = 0; index < points.length; index += 1) {
+      const current = points[index];
+      const next = points[(index + 1) % points.length];
+      area += current.x * next.y - next.x * current.y;
+    }
+    return area / 2;
+  }
+
+  function colorToRgba(hexColor, opacity) {
+    const hex = String(hexColor || "#111827").replace("#", "").trim();
+    const normalised = hex.length === 3
+      ? hex.split("").map((char) => char + char).join("")
+      : hex.padEnd(6, "0").slice(0, 6);
+
+    const red = Number.parseInt(normalised.slice(0, 2), 16);
+    const green = Number.parseInt(normalised.slice(2, 4), 16);
+    const blue = Number.parseInt(normalised.slice(4, 6), 16);
+
+    if (![red, green, blue].every(Number.isFinite)) {
+      return `rgba(17,24,39,${opacity})`;
+    }
+
+    return `rgba(${red},${green},${blue},${opacity})`;
   }
 
   function cleanClosedRing(ring) {

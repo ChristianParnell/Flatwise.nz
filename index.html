@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Flatwise.nz — Tenant-first property reviews</title>
-  <meta name="description" content="Flatwise is a tenant-first map prototype for selecting NZ properties, viewing official LINZ boundaries, checking 3D shadow cast, and writing local rental reviews." />
+  <meta name="description" content="Flatwise is a tenant-first map prototype for selecting NZ properties, viewing official LINZ boundaries, checking 3D shadow cast, switching to satellite view, and writing local rental reviews." />
   <link rel="preconnect" href="https://tile.openstreetmap.org" />
   <link rel="preconnect" href="https://services.arcgis.com" />
   <link rel="preconnect" href="https://nominatim.openstreetmap.org" />
@@ -41,7 +41,7 @@
         <div class="hero-copy">
           <p class="eyebrow">Tenant-first property reviews</p>
           <h1>Click the actual property. Review the actual flat.</h1>
-          <p class="hero-text">Flatwise combines official property boundary lookup with local review tools. Select a flat, highlight the parcel, check the 3D shadow cast, and score the rental experience with clear 1–10 sliders.</p>
+          <p class="hero-text">Flatwise combines official property boundary lookup with local review tools. Select a flat, highlight the parcel, check the 3D shadow cast, switch to satellite view when needed, and score the rental experience with clear 1–10 sliders.</p>
 
           <div class="hero-actions">
             <a class="primary-button large" href="#mapArea">Open Wellington map</a>
@@ -70,8 +70,8 @@
       <section id="mapArea" class="map-section">
         <div class="section-header compact">
           <p class="eyebrow">Select a rental</p>
-          <h2>LINZ boundaries with one clean 3D shadow-cast mode.</h2>
-          <p>Click a visible property polygon, a demo flat marker, or search an address. After a property is selected, use the single 3D shadow-cast mode for a clearer rental-focused daylight check.</p>
+          <h2>LINZ boundaries with clean 3D shadows and satellite view.</h2>
+          <p>Click a visible property polygon, a demo flat marker, or search an address. After a property is selected, use 3D shadow cast for building shadows or switch to Satellite view when you want realistic imagery.</p>
         </div>
 
         <div class="map-panel" aria-label="Flatwise property selector">
@@ -113,10 +113,11 @@
               <select id="sunlightMode" name="sunlightMode">
                 <option value="off">Off</option>
                 <option value="threeDShadow">3D shadow cast</option>
+                <option value="satelliteView">Satellite view</option>
               </select>
             </label>
 
-            <p>Only the 3D shadow-cast mode is kept. It uses council/LINZ building footprints, real Wellington height fields where available, and an aerial basemap while active so the footprints are easier to compare against real buildings.</p>
+            <p>3D shadow cast keeps the normal map underneath and draws council/LINZ building footprints with one clean, unified shadow tint. Satellite view is a separate map mode for realistic imagery only.</p>
           </div>
 
           <div class="map-wrap">
@@ -135,6 +136,7 @@
               <span><i class="legend-line selected"></i> Selected property</span>
               <span><i class="legend-line building"></i> Building outline</span>
               <span><i class="legend-dot sun"></i> 3D shadow cast</span>
+              <span><i class="legend-dot satellite"></i> Satellite view</span>
             </div>
 
             <p id="mapStatus" class="map-status">Loading map…</p>
@@ -244,7 +246,7 @@
         <div class="steps-grid">
           <article><span>01</span><h3>Load LINZ polygons</h3><p>At close zoom levels, the map asks the official property boundary layer for the current view.</p></article>
           <article><span>02</span><h3>Select the property</h3><p>Clicking a polygon or marker locks the review to that selected property boundary.</p></article>
-          <article><span>03</span><h3>Cast 3D shadows</h3><p>The 3D mode anchors building roofs to their real GIS footprints and casts shadows from those footprints, so the layer reads more cleanly on the map.</p></article>
+          <article><span>03</span><h3>Cast 3D shadows</h3><p>The 3D mode anchors building roofs to their real GIS footprints and draws building shadows as one unified tint, so overlapping shadows do not get darker.</p></article>
           <article><span>04</span><h3>Save local reviews</h3><p>Tenant notes and scores stay in localStorage while the app remains a safe prototype.</p></article>
         </div>
       </section>

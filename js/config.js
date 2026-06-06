@@ -109,8 +109,13 @@ const FLATWISE_CONFIG = {
     geometryPrecision: 6,
     cacheEntries: 18,
 
-    // An aerial basemap is swapped in only while 3D shadow cast is active.
-    // It makes the council/LINZ footprints easier to compare against real building positions than OSM roads/labels.
+    // Satellite is a separate basemap mode. It is not automatically used by 3D shadow cast.
+    satelliteModeValue: "satelliteView",
+    satelliteModeLabel: "Satellite view",
+    satelliteBaseTiles: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    satelliteBaseAttribution: "Tiles &copy; Esri — Sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+
+    // Backward-compatible aliases, in case an older cached plug-in still reads these names.
     shadowBaseTiles: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     shadowBaseAttribution: "Tiles &copy; Esri — Sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
 
@@ -120,12 +125,12 @@ const FLATWISE_CONFIG = {
     minHeightMeters: 3,
     maxHeightMeters: 85,
 
-    // Keep geometry locked to the real footprint by default.
-    // Fake perspective extrusion can be re-enabled later, but it made shadows look offset on the map.
-    perspectiveExtrusion: false,
-    heightPixelScale: 0.32,
+    // Keep the building base locked to the real footprint, while giving the roof a small 2.5D lift.
+    // Shadows are still cast from the true footprint so the 3D effect does not offset the sunlight layer.
+    perspectiveExtrusion: true,
+    heightPixelScale: 0.22,
     minExtrudePixels: 1,
-    maxExtrudePixels: 22,
+    maxExtrudePixels: 16,
 
     cityBounds: {
       wellington: { south: -41.37, west: 174.57, north: -41.12, east: 175.02 },
@@ -221,6 +226,8 @@ window.FLATWISE_CONFIG = FLATWISE_CONFIG;
 (function installFlatwiseSunlightModeCleanup() {
   const THREE_D_VALUE = FLATWISE_CONFIG.threeD.sunlightModeValue;
   const THREE_D_LABEL = FLATWISE_CONFIG.threeD.sunlightModeLabel;
+  const SATELLITE_VALUE = FLATWISE_CONFIG.threeD.satelliteModeValue || "satelliteView";
+  const SATELLITE_LABEL = FLATWISE_CONFIG.threeD.satelliteModeLabel || "Satellite view";
 
   const styleId = "flatwise-old-sunlight-cleanup-style";
   if (!document.getElementById(styleId)) {
@@ -242,7 +249,7 @@ window.FLATWISE_CONFIG = FLATWISE_CONFIG;
   const cleanup = () => {
     const select = document.getElementById(FLATWISE_CONFIG.threeD.sunlightModeSelectId || "sunlightMode");
     if (select) {
-      const currentValue = select.value === THREE_D_VALUE ? THREE_D_VALUE : "off";
+      const currentValue = select.value === THREE_D_VALUE || select.value === SATELLITE_VALUE ? select.value : "off";
       select.innerHTML = "";
 
       const offOption = document.createElement("option");
@@ -254,6 +261,11 @@ window.FLATWISE_CONFIG = FLATWISE_CONFIG;
       threeDOption.value = THREE_D_VALUE;
       threeDOption.textContent = THREE_D_LABEL;
       select.appendChild(threeDOption);
+
+      const satelliteOption = document.createElement("option");
+      satelliteOption.value = SATELLITE_VALUE;
+      satelliteOption.textContent = SATELLITE_LABEL;
+      select.appendChild(satelliteOption);
 
       select.value = currentValue;
     }
