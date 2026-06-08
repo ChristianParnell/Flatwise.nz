@@ -85,6 +85,8 @@ Packaged the updated LINZ parcel selection, boundary highlight, and property foc
 
 Investigated how existing map data and public APIs could support clicking and highlighting real property boundaries. This helped confirm LINZ parcel data as the strongest foundation for accurate property selection in Flatwise.
 
+<img width="1044" height="718" alt="Screenshot 2026-05-24 225709" src="https://github.com/user-attachments/assets/f848c1c5-9a9d-45fa-9a13-1f5115b1f140" />
+
 ### 06-02 — Flatwise repository workflow established
 
 Confirmed the Flatwise.nz GitHub repository as the working foundation for future development. The workflow was set up so future updates preserve existing functionality, avoid changing unrelated files, and provide complete downloadable files or ZIP packages for GitHub Desktop upload.
@@ -95,7 +97,8 @@ Updated the map system to use the official LINZ NZ Property Boundaries layer for
 
 Connected demo flat listings to real LINZ property polygons where possible. This made the prototype feel more realistic because selected demo flats could now relate to official land parcels rather than floating loosely near general map positions.
 
-<img width="1044" height="718" alt="Screenshot 2026-05-24 225709" src="https://github.com/user-attachments/assets/f848c1c5-9a9d-45fa-9a13-1f5115b1f140" />
+<img width="1000" height="820" alt="Screenshot 2026-06-05 210636" src="https://github.com/user-attachments/assets/67a88a1c-aec7-4a8f-82ca-f8a2448514ef" />
+
 
 ### 06-05 — Street View Static API support added
 
@@ -123,6 +126,10 @@ Researched free council and public data sources that could support 3D-style buil
 
 Prepared a lightweight 3D/shadow mode for the Flatwise map. The implementation added fake 2.5D building extrusion, building shadow projection based on sun direction, date and time controls, and optional terrain-style shading while keeping the existing Leaflet map and review system intact.
 
+<img width="678" height="603" alt="Screenshot 2026-06-06 142355" src="https://github.com/user-attachments/assets/4580951c-d948-43f1-afc2-ae6bdb61822f" />
+<img width="703" height="637" alt="Screenshot 2026-06-06 142326" src="https://github.com/user-attachments/assets/7e5f14a3-69d9-4f4c-86e9-f080afdad367" />
+
+
 ### 06-05 — Property selection marker cleaned up
 
 Removed the extra temporary square or centre marker that appeared after selecting a property. The selected parcel now relies on the actual property boundary highlight, making the interaction cleaner and less visually distracting.
@@ -138,6 +145,9 @@ Improved the 3D building loader so it no longer fails when a council or LINZ bui
 ### 06-05 — 3D control panel behaviour improved
 
 Updated the 3D/shadow interface so its controls only appear when the 3D/shadow mode is selected. This reduced interface clutter, prevented controls from clipping into other map options, and made the standard map view cleaner.
+<img width="232" height="214" alt="Screenshot 2026-06-05 214911" src="https://github.com/user-attachments/assets/b1607743-1907-498b-98ea-db805ac0f3bc" />
+
+
 
 ### 06-05 — Downloadable update packages prepared
 
@@ -146,6 +156,8 @@ Prepared downloadable update packages containing either the full updated site or
 ### 06-06 — Shadow accuracy issue identified
 
 Identified that the 3D shadow casting layer was not aligning correctly with buildings and appeared offset from the actual structures. This showed that the shadow system needed stronger coordinate handling and more accurate building-based projection.
+
+<img width="1110" height="586" alt="Screenshot 2026-06-06 135755" src="https://github.com/user-attachments/assets/2f36af9a-168f-4d72-818e-992a8bf402e4" />
 
 ### 06-06 — Satellite view separated from 3D shadow mode
 
