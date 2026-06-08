@@ -155,7 +155,7 @@ Set up the Flatwise.nz GitHub repository as the working foundation for future ch
 ### 06-05 — Official LINZ property boundaries added
 
 Updated the map system to use the official LINZ NZ Property Boundaries layer for accurate property polygon selection. This allows users to click real property boundaries on the map instead of relying only on approximate markers or rough demo locations.
-![Uploading Screenshot 2026-06-05 210636.png…]()
+
 
 
 ### 06-05 — Demo properties locked to real boundaries
