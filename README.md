@@ -127,6 +127,8 @@ Investigated how existing map data and APIs could be used to click and highlight
 ### 05-24 — Street View property preview explored
 
 Explored using Google Street View to show a road-facing image of a selected property. This added a future pathway for users to visually inspect a flat’s exterior alongside map data and reviews.
+<img width="1100" height="875" alt="Screenshot 2026-05-25 000142" src="https://github.com/user-attachments/assets/30467e30-1dda-4374-b2bb-5dc2901ae213" />
+
 
 ### 05-24 — Street View setup process documented
 
@@ -151,6 +153,8 @@ Set up the Flatwise.nz GitHub repository as the working foundation for future ch
 ### 06-05 — Official LINZ property boundaries added
 
 Updated the map system to use the official LINZ NZ Property Boundaries layer for accurate property polygon selection. This allows users to click real property boundaries on the map instead of relying only on approximate markers or rough demo locations.
+![Uploading Screenshot 2026-06-05 210636.png…]()
+
 
 ### 06-05 — Demo properties locked to real boundaries
 
@@ -183,6 +187,8 @@ Researched free council and public data sources that could support 3D-style buil
 ### 06-05 — 3D building and shadow mode added
 
 Prepared a new lightweight 3D/shadow mode for the map. The implementation adds fake 2.5D building extrusion, building shadow projection based on sun direction, date/time controls, and optional terrain-style shading while keeping the existing Leaflet map and property review system intact.
+<img width="1110" height="586" alt="Screenshot 2026-06-06 135755" src="https://github.com/user-attachments/assets/87771fc1-97da-4d5b-a998-3234a53fcbfc" />
+
 
 ### 06-05 — Property selection marker cleanup
 
