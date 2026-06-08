@@ -172,6 +172,32 @@ Adjusted the LINZ building data request to avoid the “building response was no
 
 ### 06-05 — Downloadable update packages prepared
 
+Established the Flatwise.nz GitHub repository as the working foundation for future changes. Future fixes and feature updates should preserve existing functionality, use the same file names and folder paths, and be delivered as complete downloadable files or ZIP packages for easy GitHub upload.
+
+### 06-05 — Free council and public building data investigated
+
+Researched free council and public data sources that could support 3D-style buildings and shadow casting across major New Zealand cities. Wellington City Council building height data was identified as the strongest immediate source, with LINZ building outlines suggested as a national fallback for Auckland, Christchurch, and other areas.
+
+### 06-05 — 3D building and shadow mode added
+
+Prepared a new lightweight 3D/shadow mode for the map. The implementation adds fake 2.5D building extrusion, building shadow projection based on sun direction, date/time controls, and optional terrain-style shading while keeping the existing Leaflet map and property review system intact.
+
+### 06-05 — Property selection marker cleanup
+
+Removed the extra temporary square/centre marker that appeared after selecting a property. The selected parcel now relies only on the actual property boundary highlight, making the interaction cleaner and less visually distracting.
+
+### 06-05 — Replacement file naming clarified
+
+Confirmed that all future downloadable fixes should keep the same file names and folder paths as the live GitHub repository. This makes updates easier to copy into GitHub without needing to rename or restructure files manually.
+
+### 06-05 — 3D building source fallback improved
+
+Improved the 3D building loader so it no longer fails when a council or LINZ building service returns an empty, unexpected, or non-GeoJSON response. The layer now handles service issues more safely and falls back where possible instead of breaking the 3D mode.
+
+### 06-05 — 3D control panel behaviour improved
+
+Updated the 3D/shadow interface so its controls only appear when the 3D/shadow mode is selected. This prevents the 3D options from clipping into the map legend and keeps the standard map controls cleaner when other sunlight modes are active.
+
 Prepared downloadable update packages containing either the full updated site or only the changed files. This makes the workflow easier to use with GitHub Desktop while keeping the project’s existing structure intact.
 ### 06-06 — Shadow accuracy issue identified
 
@@ -188,6 +214,38 @@ Defined that overlapping shadows should not stack into darker areas. This improv
 ### 06-06 — Review panel redesign requested
 
 Requested a more professional and easier-to-read flat rating UI. This included improving the lightboxes, smoothing the layout, and making the review interface feel cleaner and more trustworthy.
+
+### 06-06 — 3D shadow controls simplified
+
+Cleaned up the map mode controls so the 3D shadow system is easier to understand and no longer overlaps with unrelated sunlight tools. Removed inactive sunlight modes including sun heatmap, winter sunlight, summer sunlight, daily average estimate, and the unused shadow mode, leaving the focus on the working 3D shadow cast feature.
+
+### 06-06 — Sunlight estimate panel removed from 3D mode
+
+Removed the beige sunlight estimate panel when 3D shadow cast is active. This keeps the right-side interface cleaner, prevents panel intersection, and makes the 3D shadow controls feel more intentional instead of cluttered.
+
+### 06-06 — 3D shadow map presentation improved
+
+Updated the 3D shadow mode so buildings and shadows display more clearly on the map. The work focused on making the building layer easier to read and reducing visual confusion caused by the previous map styling and overlapping interface elements.
+
+### 06-06 — Shadow alignment issues addressed
+
+Adjusted the 3D shadow casting logic after shadows appeared offset from their source buildings. The update focused on keeping shadows tied more closely to the actual building footprints so they no longer appeared to come from random houses or stretch incorrectly across roads.
+
+### 06-06 — Review form UI redesigned
+
+Improved the “write your own review” panel to look more professional and easier to use. The rating sliders were reorganised into cleaner rows, the score labels were made easier to read, and the form styling was adjusted to feel more polished and less rough.
+
+### 06-06 — Satellite view separated into its own map mode
+
+Changed satellite imagery into a separate selectable map mode instead of forcing it inside 3D shadow mode. This keeps satellite viewing useful as its own feature while allowing 3D shadow cast mode to remain focused on buildings, parcels, and shadows.
+
+### 06-06 — Unified shadow tint added
+
+Updated the shadow rendering behaviour so overlapping building shadows do not stack into darker patches. Intersecting shadows now behave as one unified tint layer, making the 3D shadow cast cleaner, more realistic, and easier to interpret.
+
+### 06-06 — Full replacement files prepared
+
+Prepared complete downloadable replacement files using the same filenames as the existing project files. This made the updates easier to apply through GitHub Desktop while preserving the existing project structure and avoiding unnecessary file renaming.
 
 ### 06-08 — Sunlight heatmap options researched
 
@@ -220,4 +278,6 @@ Prepared a lighter version of the sunlight system using a lower-resolution canva
 ### 06-08 — Real-time sunlight build fixed
 
 Prepared a corrected real-time sunlight build after the lightweight version failed to work properly. The fix made the sunlight layer safer, optional, and less likely to break the base map if the overlay fails.
+
+
 
