@@ -39,166 +39,97 @@ Would you want to live there for 6–12 months?
 
 
 
-### 05-13 — Enlarged map tile loading
+## Development Progress
 
-Asked to make the loaded map tiles much bigger so the map covers more area and feels less fragmented while moving around.
+### 05-12 — Map tile loading improved
 
-### 05-13 — Expanded LINZ boundary loading
+Updated the Leaflet tile loading behaviour so the map loads a wider surrounding area while users move around. This reduced visible tile pop-in, helped prevent blank or incomplete tile sections, and made navigation across the Flatwise map feel smoother and more stable.
 
-Asked to improve LINZ parcel and property boundary loading so nearby boundary data appears more reliably while navigating the map.
-
-### 05-13 — Full replacement scripts requested
-
-Asked for full replacement scripts instead of small code snippets so the map, property selection, review system, and boundary features stay consistent.
-
-### 05-13 — Leaflet integrity hash issue reported
-
-Reported that Chrome was blocking Leaflet CSS because the Subresource Integrity hash did not match the downloaded file, causing the map styling to break.
-
-### 05-13 — LINZ property parcel explained
-
-Asked what LINZ property parcels are and how they relate to selecting and highlighting properties on the Flatwise.nz map.
-
-### 05-13 — Property boundary highlighting requested
-
-Asked for property boundary lines to highlight when clicking a property on the map.
-
-### 05-13 — Map focus on selected property requested
-
-Asked for the map to move and focus on the selected property after it is clicked.
-
-### 05-13 — Incomplete tile loading issue raised
-
-Asked for a way to reduce incomplete map tiles and make the map loading feel smoother.
+<img width="1146" height="814" alt="iii" src="https://github.com/user-attachments/assets/7178a2c7-aeaf-47ac-8d2b-55c0984fffa8" />
 
 
-### 05-13 — Map tile loading improved
+### 05-13 — LINZ boundary loading expanded
 
-Adjusted the OpenStreetMap tile settings to reduce blank, stretched, or incomplete map tiles. The map was updated to use more stable tile sizing, better tile buffering, a visible loading state, and retry handling for failed tile requests.
+Improved the loading range for LINZ parcel and property boundary data so nearby boundaries appear more reliably while navigating. This made the map feel more continuous and helped support accurate property selection beyond only the immediately visible screen area.
+Identified that Chrome was blocking the Leaflet stylesheet because the Subresource Integrity hash did not match the downloaded file. Resolving this issue was important because the blocked stylesheet caused the map layout and interface styling to break.
 
-### 05-13 — Downloadable tile update files prepared
+### 05-15 — LINZ property parcel workflow defined
 
-Packaged the map tile loading improvements into downloadable replacement files for easier GitHub upload. The main replacement files were `js/app.js` and `js/config.js`.
+Clarified how LINZ property parcels can be used as real land-boundary data for Flatwise.nz. This established official property boundaries as the correct foundation for selecting, highlighting, and reviewing flats more accurately than relying only on map pins.
+Added the requirement for selected properties to highlight using their actual boundary lines. This strengthened the map interaction by making it clear which exact parcel a user had selected before reading or writing a review.
 
-### 05-20 — LINZ property parcel selection added
+### 05-16 — Map focus on selected property added
 
-Updated the map system so OpenStreetMap works as the base map while official LINZ property parcel boundaries sit above it as an interactive layer. Users can now hover over property parcels, click a parcel, and select the actual land boundary instead of relying only on map pins.
+Improved property selection behaviour so the map can move and focus on a selected property after it is clicked. This made the experience feel more intentional and helped users understand the relationship between the property boundary, the review panel, and the map location.
+
+Prepared replacement project files for the tile loading improvements so the changes could be applied more easily through GitHub. The update focused mainly on the map configuration and application logic files while preserving the existing project structure.
+
+### 05-20 — Tenant review writing added
+
+Added the core requirement for users to write their own flat reviews after selecting a property. This moved Flatwise closer to its main purpose as a tenant-first review tool, where real property selection connects directly to lived rental feedback.
+Updated the map system so OpenStreetMap works as the base map while official LINZ property parcel boundaries sit above it as an interactive layer. Users can now hover over property parcels, click a parcel, and select the actual land boundary instead of relying only on approximate demo pins.
 
 ### 05-20 — Selected property boundary highlight improved
 
-Added a stronger selected-property state so the clicked parcel turns red and remains clearly visible. A separate selected boundary layer was added so the selected outline stays on top even after the map moves, zooms, or reloads nearby parcel data.
-
-### 05-20 — Map focus on selected property added
-
-Improved the click behaviour so when a user selects a property parcel, the map automatically moves and zooms to focus on that selected boundary. This makes the site feel more property-focused and helps users understand exactly which parcel they selected.
+Improved the selected-property state so the clicked parcel turns red and remains clearly visible. A separate selected boundary layer was added so the chosen outline stays on top even after the map moves, zooms, or reloads nearby parcel data.
 
 ### 05-20 — Review panel connection preserved
 
-Kept the existing Flatwise review system connected to the selected property. When a parcel is selected, the details panel updates with property information, rent guidance, review data, and the option to save a local browser review.
+Kept the Flatwise review system connected to the selected property. When a parcel is selected, the details panel updates with property information, rent guidance, review data, and the option to save a local browser review.
 
 ### 05-20 — Downloadable boundary update files prepared
 
-Packaged the updated LINZ parcel selection and boundary focus work into downloadable replacement files for easier GitHub upload. The main replacement file was `js/app.js`.
-
-### 05-13 — Enlarged map tile loading
-
-Updated the Leaflet tile loading behaviour so the map loads a wider surrounding area while users move around. This helps the map feel smoother, reduces visible tile pop-in, and makes navigation across the Flatwise map feel more stable.
-
-### 05-13 — Leaflet integrity issue identified
-
-Identified that the Leaflet stylesheet was being blocked because the Subresource Integrity hash did not match the downloaded file. Fixing or removing the incorrect integrity value prevents the map interface from breaking when Leaflet styling fails to load.
-
-### 05-13 — Full replacement scripts prepared
-
-Prepared full replacement versions of the key map files instead of small code snippets. This made the update easier to apply and reduced the chance of missing dependencies between the map, LINZ boundaries, tile settings, and review features.
-
-### 05-20 — Property review writing requested
-
-Added the requirement for users to write their own flat reviews after selecting a property. This moved Flatwise closer to its main purpose as a tenant-first review tool, where property selection connects directly to user feedback.
-
-### 05-20 — Property selection highlight improved
-
-Added the requirement that selected properties must be clearly highlighted on the map. This helps users understand exactly which property they are reviewing and makes the LINZ parcel selection feel more precise.
-
-<img width="1000" height="820" alt="Screenshot 2026-06-05 210636" src="https://github.com/user-attachments/assets/565c100e-62ef-4165-bc82-4d958cd7e8ff" />
+Packaged the updated LINZ parcel selection, boundary highlight, and property focus work into downloadable replacement files. This made the changes easier to upload into the GitHub repository without manually rebuilding the file structure.
 
 ### 05-24 — LINZ property boundary workflow explored
 
-Investigated how existing map data and APIs could be used to click and highlight real property boundaries. This established LINZ parcel data as the main foundation for accurate property selection in Flatwise.
+Investigated how existing map data and public APIs could support clicking and highlighting real property boundaries. This helped confirm LINZ parcel data as the strongest foundation for accurate property selection in Flatwise.
 
-### 05-24 — Street View property preview explored
+### 06-02 — Flatwise repository workflow established
 
-Explored using Google Street View to show a road-facing image of a selected property. This added a future pathway for users to visually inspect a flat’s exterior alongside map data and reviews.
-<img width="1100" height="875" alt="Screenshot 2026-05-25 000142" src="https://github.com/user-attachments/assets/30467e30-1dda-4374-b2bb-5dc2901ae213" />
-
-
-### 05-24 — Street View setup process documented
-
-Outlined how the Street View API could be connected to the site, including setup, API key use, and restrictions. This helped define how Flatwise could safely add property preview images without exposing unrestricted API access.
-
-### 06-05 — Flatwise repository workflow established
-
-Confirmed the Flatwise.nz GitHub repository as the working foundation for future code changes. Future edits should preserve existing functionality, avoid changing unrequested parts, and provide complete downloadable files for GitHub Desktop upload.
-
-### 06-05 — 3D building source issue reviewed
-
-Reviewed errors related to the 3D building layer failing when the building source did not return usable GeoJSON features. This highlighted the need for safer fallbacks so the map does not fail when external building data is unavailable.
-
-### 06-05 — 3D and shadow UI controls improved
-
-Requested UI changes so 3D and shadow-related controls only appear when the correct mode is selected. This helps reduce clutter and prevents map options from overlapping or confusing users.
-
-### 06-05 — Flatwise.nz repo workflow established
-
-Set up the Flatwise.nz GitHub repository as the working foundation for future changes. The project structure was reviewed so updates could be made without changing unrelated files, with future deliverables prepared as downloadable changed files or full site packages.
+Confirmed the Flatwise.nz GitHub repository as the working foundation for future development. The workflow was set up so future updates preserve existing functionality, avoid changing unrelated files, and provide complete downloadable files or ZIP packages for GitHub Desktop upload.
 
 ### 06-05 — Official LINZ property boundaries added
 
-Updated the map system to use the official LINZ NZ Property Boundaries layer for accurate property polygon selection. This allows users to click real property boundaries on the map instead of relying only on approximate markers or rough demo locations.
+Updated the map system to use the official LINZ NZ Property Boundaries layer for accurate property polygon selection. This allowed users to click real property boundaries on the map instead of relying only on approximate markers or rough demo locations.
 
+Connected demo flat listings to real LINZ property polygons where possible. This made the prototype feel more realistic because selected demo flats could now relate to official land parcels rather than floating loosely near general map positions.
 
+<img width="1044" height="718" alt="Screenshot 2026-05-24 225709" src="https://github.com/user-attachments/assets/f848c1c5-9a9d-45fa-9a13-1f5115b1f140" />
 
-### 06-05 — Demo properties locked to real boundaries
+### 06-05 — Street View Static API support added
 
-Connected the demo flats to actual LINZ property polygons where possible. This makes the demo listings feel more realistic because each selected property can be tied to an official boundary rather than floating near a general map position.
+Prepared the site to use the Google Street View Static API for selected properties. The system was designed to use a restricted browser key so property cards could show a static road-facing image when Street View imagery is available. Explored using Google Street View to show a road-facing preview image of a selected property. This added a future pathway for users to visually inspect a flat’s exterior alongside map data, parcel boundaries, and tenant reviews. Outlined how the Google Street View Static API could be connected to Flatwise, including API key setup, browser restrictions, and fallback behaviour. This helped define a safer setup process so property preview images could be added without exposing unrestricted API access.
 
-### 06-05 — Street View Static API setup added
-
-Added Google Street View Static API support for selected properties. The site was prepared to use a restricted browser key, allowing property cards to show a static road-facing image when Street View imagery is available.
+<img width="1100" height="875" alt="Screenshot 2026-05-25 000142" src="https://github.com/user-attachments/assets/ed5643df-f9aa-4428-afe6-104f27c03483" />
 
 ### 06-05 — Street View metadata-first loading added
 
-Improved the Street View system so it checks Google Street View metadata before requesting an image. This helps avoid unnecessary image requests and allows the site to show a clearer fallback message when no panorama exists nearby.
+Improved the Street View workflow so the site checks metadata before requesting an image. This helps avoid unnecessary image requests and allows the interface to show a clearer fallback message when no panorama exists nearby.
 
-### 06-05 — Street View loading fix prepared
+### 06-05 — Street View configuration flow fixed
 
-Fixed the Street View configuration flow so the site can correctly detect when Street View is enabled and when an API key is present. Cache-busting was also added so GitHub Pages is less likely to keep serving older JavaScript or config files.
+Fixed the Street View configuration flow so the site can correctly detect when Street View is enabled and when an API key is present. Cache-busting was also added to reduce the chance of GitHub Pages serving outdated JavaScript or configuration files.
 
-### 06-05 — LINZ building response error handled
+### 06-05 — LINZ building response handling improved
 
-Adjusted the LINZ building data request to avoid the “building response was not GeoJSON” error. This makes the map more stable when loading extra building and boundary data around the selected property.
+Adjusted the LINZ building data request to avoid failures when the response is empty, unexpected, or not valid GeoJSON. This made the map more stable when loading extra building and boundary data around selected properties.
 
-### 06-05 — Downloadable update packages prepared
+### 06-05 — Public building data sources investigated
 
-Established the Flatwise.nz GitHub repository as the working foundation for future changes. Future fixes and feature updates should preserve existing functionality, use the same file names and folder paths, and be delivered as complete downloadable files or ZIP packages for easy GitHub upload.
-
-### 06-05 — Free council and public building data investigated
-
-Researched free council and public data sources that could support 3D-style buildings and shadow casting across major New Zealand cities. Wellington City Council building height data was identified as the strongest immediate source, with LINZ building outlines suggested as a national fallback for Auckland, Christchurch, and other areas.
+Researched free council and public data sources that could support 3D-style buildings and shadow casting across major New Zealand cities. Wellington City Council building height data was identified as a strong immediate source, with LINZ building outlines suggested as a broader national fallback.
 
 ### 06-05 — 3D building and shadow mode added
 
-Prepared a new lightweight 3D/shadow mode for the map. The implementation adds fake 2.5D building extrusion, building shadow projection based on sun direction, date/time controls, and optional terrain-style shading while keeping the existing Leaflet map and property review system intact.
-<img width="1110" height="586" alt="Screenshot 2026-06-06 135755" src="https://github.com/user-attachments/assets/87771fc1-97da-4d5b-a998-3234a53fcbfc" />
+Prepared a lightweight 3D/shadow mode for the Flatwise map. The implementation added fake 2.5D building extrusion, building shadow projection based on sun direction, date and time controls, and optional terrain-style shading while keeping the existing Leaflet map and review system intact.
 
+### 06-05 — Property selection marker cleaned up
 
-### 06-05 — Property selection marker cleanup
-
-Removed the extra temporary square/centre marker that appeared after selecting a property. The selected parcel now relies only on the actual property boundary highlight, making the interaction cleaner and less visually distracting.
+Removed the extra temporary square or centre marker that appeared after selecting a property. The selected parcel now relies on the actual property boundary highlight, making the interaction cleaner and less visually distracting.
 
 ### 06-05 — Replacement file naming clarified
 
-Confirmed that all future downloadable fixes should keep the same file names and folder paths as the live GitHub repository. This makes updates easier to copy into GitHub without needing to rename or restructure files manually.
+Confirmed that future downloadable fixes should keep the same filenames and folder paths as the live GitHub repository. This made updates easier to copy into GitHub Desktop without needing to rename files or restructure the project manually.
 
 ### 06-05 — 3D building source fallback improved
 
@@ -206,80 +137,71 @@ Improved the 3D building loader so it no longer fails when a council or LINZ bui
 
 ### 06-05 — 3D control panel behaviour improved
 
-Updated the 3D/shadow interface so its controls only appear when the 3D/shadow mode is selected. This prevents the 3D options from clipping into the map legend and keeps the standard map controls cleaner when other sunlight modes are active.
+Updated the 3D/shadow interface so its controls only appear when the 3D/shadow mode is selected. This reduced interface clutter, prevented controls from clipping into other map options, and made the standard map view cleaner.
 
-Prepared downloadable update packages containing either the full updated site or only the changed files. This makes the workflow easier to use with GitHub Desktop while keeping the project’s existing structure intact.
+### 06-05 — Downloadable update packages prepared
+
+Prepared downloadable update packages containing either the full updated site or only the changed files. This made the workflow easier to use with GitHub Desktop while keeping the project’s existing structure intact.
+
 ### 06-06 — Shadow accuracy issue identified
 
 Identified that the 3D shadow casting layer was not aligning correctly with buildings and appeared offset from the actual structures. This showed that the shadow system needed stronger coordinate handling and more accurate building-based projection.
 
 ### 06-06 — Satellite view separated from 3D shadow mode
 
-Clarified that the realistic map view should become a separate Satellite View mode, while the 3D/shadow mode should focus on buildings and cast shadows. This keeps the map modes clearer and prevents different visual systems from being mixed together.
+Separated realistic satellite imagery into its own map mode instead of forcing it inside the 3D/shadow system. This made the map modes clearer by keeping satellite viewing useful as a separate feature while allowing 3D shadow mode to focus on buildings, parcels, and shadow casting.
 
-### 06-06 — Shadow overlap behaviour defined
+### 06-06 — Shadow overlap behaviour improved
 
-Defined that overlapping shadows should not stack into darker areas. This improves readability by keeping shadow opacity consistent, even when multiple building shadows intersect.
-
-### 06-06 — Review panel redesign requested
-
-Requested a more professional and easier-to-read flat rating UI. This included improving the lightboxes, smoothing the layout, and making the review interface feel cleaner and more trustworthy.
-
-### 06-06 — 3D shadow controls simplified
-
-Cleaned up the map mode controls so the 3D shadow system is easier to understand and no longer overlaps with unrelated sunlight tools. Removed inactive sunlight modes including sun heatmap, winter sunlight, summer sunlight, daily average estimate, and the unused shadow mode, leaving the focus on the working 3D shadow cast feature.
-
-### 06-06 — Sunlight estimate panel removed from 3D mode
-
-Removed the beige sunlight estimate panel when 3D shadow cast is active. This keeps the right-side interface cleaner, prevents panel intersection, and makes the 3D shadow controls feel more intentional instead of cluttered.
-
-### 06-06 — 3D shadow map presentation improved
-
-Updated the 3D shadow mode so buildings and shadows display more clearly on the map. The work focused on making the building layer easier to read and reducing visual confusion caused by the previous map styling and overlapping interface elements.
-
-### 06-06 — Shadow alignment issues addressed
-
-Adjusted the 3D shadow casting logic after shadows appeared offset from their source buildings. The update focused on keeping shadows tied more closely to the actual building footprints so they no longer appeared to come from random houses or stretch incorrectly across roads.
+Updated the shadow rendering behaviour so overlapping building shadows do not stack into darker patches. Intersecting shadows now behave as one unified tint layer, making the shadow cast cleaner, easier to read, and more realistic.
 
 ### 06-06 — Review form UI redesigned
 
-Improved the “write your own review” panel to look more professional and easier to use. The rating sliders were reorganised into cleaner rows, the score labels were made easier to read, and the form styling was adjusted to feel more polished and less rough.
+Improved the “write your own review” panel so it looked more professional and easier to use. The rating sliders were reorganised into cleaner rows, score labels were made easier to read, and the form styling was adjusted to feel more polished and trustworthy.
 
-### 06-06 — Satellite view separated into its own map mode
+### 06-06 — 3D shadow controls simplified
 
-Changed satellite imagery into a separate selectable map mode instead of forcing it inside 3D shadow mode. This keeps satellite viewing useful as its own feature while allowing 3D shadow cast mode to remain focused on buildings, parcels, and shadows.
+Cleaned up the map mode controls so the 3D shadow system is easier to understand and no longer overlaps with unrelated sunlight tools. Inactive sunlight modes were removed from this view so the interface could focus on the working 3D shadow cast feature.
 
-### 06-06 — Unified shadow tint added
+### 06-06 — Sunlight estimate panel removed from 3D mode
 
-Updated the shadow rendering behaviour so overlapping building shadows do not stack into darker patches. Intersecting shadows now behave as one unified tint layer, making the 3D shadow cast cleaner, more realistic, and easier to interpret.
+Removed the beige sunlight estimate panel when 3D shadow cast mode is active. This kept the right-side interface cleaner, prevented panel overlap, and made the 3D shadow controls feel more intentional instead of cluttered.
+
+### 06-06 — 3D shadow map presentation improved
+
+Updated the 3D shadow mode so buildings and shadows display more clearly on the map. The work focused on making the building layer easier to read and reducing visual confusion caused by previous map styling and overlapping interface elements.
+
+### 06-06 — Shadow alignment issues addressed
+
+Adjusted the 3D shadow casting logic after shadows appeared offset from their source buildings. The update focused on keeping shadows tied more closely to the actual building footprints so they no longer appeared to come from unrelated houses or stretch incorrectly across roads.
 
 ### 06-06 — Full replacement files prepared
 
-Prepared complete downloadable replacement files using the same filenames as the existing project files. This made the updates easier to apply through GitHub Desktop while preserving the existing project structure and avoiding unnecessary file renaming.
+Prepared complete downloadable replacement files using the same filenames as the existing project files. This made the updates easier to apply through GitHub Desktop while preserving the project structure and avoiding unnecessary file renaming.
 
 ### 06-08 — Sunlight heatmap options researched
 
-Explored whether a sunlight heatmap API could be used with the LINZ map. The outcome was that Flatwise should use LINZ for property boundaries and a separate estimated sunlight layer for daylight analysis.
+Explored whether a sunlight heatmap API could be used alongside the LINZ map. The outcome was that Flatwise should use LINZ for property boundaries while using a separate estimated sunlight layer for daylight and shadow analysis.
 
 ### 06-08 — Estimated sunlight overlay planned
 
-Defined an estimated daylight system that can display sunlight conditions close to a selected property. The system is intended to show useful rental-focused sunlight information without claiming to be a formal engineering-grade solar report.
+Defined an estimated daylight system that can display sunlight conditions close to a selected property. The system was planned as rental-focused guidance rather than a formal engineering-grade solar report, keeping the feature useful while avoiding overclaiming accuracy.
 
 ### 06-08 — Sunlight overlay modes added
 
-Added planned sunlight modes for Off, Sun heatmap, Shadow cast, Winter sunlight, Summer sunlight, and Daily average estimate. These modes give users different ways to understand daylight and shadow conditions around a selected flat.
+Added planned sunlight modes including Off, Sun heatmap, Shadow cast, Winter sunlight, Summer sunlight, and Daily average estimate. These modes gave users different ways to understand daylight and shadow conditions around a selected flat.
 
 ### 06-08 — Complete sunlight build prepared
 
-Prepared a complete downloadable Flatwise build with the new sunlight overlay system added. The build included the sunlight controls, estimated heatmap rendering, selected-property focus, and mode-based daylight analysis.
+Prepared a complete downloadable Flatwise build with the new sunlight overlay system added. The build included sunlight controls, estimated heatmap rendering, selected-property focus, and mode-based daylight analysis.
 
 ### 06-08 — Daylight estimate mockup generated
 
-Generated a visual mockup showing how the daylight estimate should appear on the map. The mockup showed a selected property boundary, a smooth heatmap overlay, sunlight controls, a daylight legend, and a property sunlight score card.
+Generated a visual mockup showing how the daylight estimate could appear on the map. The mockup included a selected property boundary, a smooth heatmap overlay, sunlight controls, a daylight legend, and a property sunlight score card.
 
 ### 06-08 — Sunlight performance issue identified
 
-Identified that the first sunlight version was too heavy for real-time use and could crash or freeze the website. The main issue was that the overlay was sampling too many points and recalculating shadows too often.
+Identified that the first sunlight version was too heavy for real-time use and could crash or freeze the website. The main issue was that the overlay sampled too many points and recalculated shadows too often.
 
 ### 06-08 — Lightweight sunlight build prepared
 
