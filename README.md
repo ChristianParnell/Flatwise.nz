@@ -63,8 +63,8 @@ Added the requirement for selected properties to highlight using their actual bo
 Improved property selection behaviour so the map can move and focus on a selected property after it is clicked. This made the experience feel more intentional and helped users understand the relationship between the property boundary, the review panel, and the map location.
 
 Prepared replacement project files for the tile loading improvements so the changes could be applied more easily through GitHub. The update focused mainly on the map configuration and application logic files while preserving the existing project structure.
+<img width="1044" height="718" alt="Screenshot 2026-05-24 225709" src="https://github.com/user-attachments/assets/f848c1c5-9a9d-45fa-9a13-1f5115b1f140" />
 
-<img width="1000" height="820" alt="Screenshot 2026-06-05 210636" src="https://github.com/user-attachments/assets/67a88a1c-aec7-4a8f-82ca-f8a2448514ef" />
 
 ### 05-20 — Tenant review writing added
 
@@ -87,7 +87,7 @@ Packaged the updated LINZ parcel selection, boundary highlight, and property foc
 
 Investigated how existing map data and public APIs could support clicking and highlighting real property boundaries. This helped confirm LINZ parcel data as the strongest foundation for accurate property selection in Flatwise.
 
-<img width="1044" height="718" alt="Screenshot 2026-05-24 225709" src="https://github.com/user-attachments/assets/f848c1c5-9a9d-45fa-9a13-1f5115b1f140" />
+<img width="1000" height="820" alt="Screenshot 2026-06-05 210636" src="https://github.com/user-attachments/assets/67a88a1c-aec7-4a8f-82ca-f8a2448514ef" />
 
 ### 05-27 — Flatwise repository workflow established
 
