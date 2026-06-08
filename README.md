@@ -157,9 +157,7 @@ Generated a visual mockup showing how the daylight estimate could appear on the 
 Identified that the first sunlight version was too heavy for real-time use and could crash or freeze the website. The main issue was that the overlay sampled too many points and recalculated shadows too often.
 Prepared a lighter version of the sunlight system using a lower-resolution canvas, reduced sun samples, fewer building shadows, and less frequent redraws. This was intended to keep the lighting effect while reducing computer load.
 
-### 06-08 — Real-time sunlight build fixed
-
-Prepared a corrected real-time sunlight build after the lightweight version failed to work properly. The fix made the sunlight layer safer, optional, and less likely to break the base map if the overlay fails.
+Corrected real-time sunlight build after the lightweight version failed to work properly. The fix made the sunlight layer safer, optional, and less likely to break the base map if the overlay fails.
 
 <img width="1139" height="867" alt="Screenshot 2026-06-08 203630" src="https://github.com/user-attachments/assets/15bd5b78-e7f8-473a-bcc3-a8f5b9438188" />
 
