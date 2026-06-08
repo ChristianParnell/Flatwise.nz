@@ -64,6 +64,8 @@ Improved property selection behaviour so the map can move and focus on a selecte
 
 Prepared replacement project files for the tile loading improvements so the changes could be applied more easily through GitHub. The update focused mainly on the map configuration and application logic files while preserving the existing project structure.
 
+<img width="1000" height="820" alt="Screenshot 2026-06-05 210636" src="https://github.com/user-attachments/assets/67a88a1c-aec7-4a8f-82ca-f8a2448514ef" />
+
 ### 05-20 — Tenant review writing added
 
 Added the core requirement for users to write their own flat reviews after selecting a property. This moved Flatwise closer to its main purpose as a tenant-first review tool, where real property selection connects directly to lived rental feedback.
@@ -91,7 +93,6 @@ Investigated how existing map data and public APIs could support clicking and hi
 
 Confirmed Flatwise.nz GitHub repo as the working base for future development. The workflow was designed to ensure future updates will preserve existing functionality, not alter unrelated files, and deliver complete downloadable files or ZIP packages suitable for upload to GitHub Desktop. Updated map system to use official LINZ NZ Property Boundaries layer to select property polygons correctly. This allowed users to click on actual property boundaries on the map instead of using approximate markers or rough demo locations. Where possible, linked demo flat listings to actual LINZ property polygons. This made the prototype feel more real as the selected demo flats could now be tied to official land parcels rather than floating loosely around general map positions.
 
-<img width="1000" height="820" alt="Screenshot 2026-06-05 210636" src="https://github.com/user-attachments/assets/67a88a1c-aec7-4a8f-82ca-f8a2448514ef" />
 
 Site preparation for using the Google Street View Static API for some selected properties. Built the system with a limited browser key so that property cards can display a static, street-facing image where Street View imagery is available. Looked at using Google Street View to show a preview image of a selected property facing onto the road. This provided users with another future avenue to visually review an exterior of a flat, along with map data, parcel boundaries and tenant reviews. Explained how the integration of the Google Street View Static API with Flatwise could be done, including API key configuration, browser restrictions and fallback behaviour. That helped to define a safer process for setting up property preview images without exposing unrestricted API access.
 
