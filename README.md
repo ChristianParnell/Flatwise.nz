@@ -120,6 +120,8 @@ Added the requirement for users to write their own flat reviews after selecting 
 
 Added the requirement that selected properties must be clearly highlighted on the map. This helps users understand exactly which property they are reviewing and makes the LINZ parcel selection feel more precise.
 
+<img width="1000" height="820" alt="Screenshot 2026-06-05 210636" src="https://github.com/user-attachments/assets/565c100e-62ef-4165-bc82-4d958cd7e8ff" />
+
 ### 05-24 — LINZ property boundary workflow explored
 
 Investigated how existing map data and APIs could be used to click and highlight real property boundaries. This established LINZ parcel data as the main foundation for accurate property selection in Flatwise.
