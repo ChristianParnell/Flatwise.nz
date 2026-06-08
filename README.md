@@ -146,9 +146,6 @@ Improved the 3D building loader so it no longer fails when a council or LINZ bui
 
 Updated the 3D/shadow interface so its controls only appear when the 3D/shadow mode is selected. This reduced interface clutter, prevented controls from clipping into other map options, and made the standard map view cleaner.
 
-<img width="232" height="214" alt="Screenshot 2026-06-05 214911" src="https://github.com/user-attachments/assets/b1607743-1907-498b-98ea-db805ac0f3bc" />
-
-
 
 ### 06-05 — Downloadable update packages prepared
 
@@ -168,6 +165,7 @@ Separated realistic satellite imagery into its own map mode instead of forcing i
 ### 06-06 — Shadow overlap behaviour improved
 
 Updated the shadow rendering behaviour so overlapping building shadows do not stack into darker patches. Intersecting shadows now behave as one unified tint layer, making the shadow cast cleaner, easier to read, and more realistic.
+Adjusted the 3D shadow casting logic after shadows appeared offset from their source buildings. The update focused on keeping shadows tied more closely to the actual building footprints so they no longer appeared to come from unrelated houses or stretch incorrectly across roads.
 
 <img width="761" height="489" alt="Screenshot 2026-06-08 201609" src="https://github.com/user-attachments/assets/7741cf40-e187-4a16-a624-de01fd036e59" />
 
@@ -193,14 +191,6 @@ Removed the beige sunlight estimate panel when 3D shadow cast mode is active. Th
 ### 06-06 — 3D shadow map presentation improved
 
 Updated the 3D shadow mode so buildings and shadows display more clearly on the map. The work focused on making the building layer easier to read and reducing visual confusion caused by previous map styling and overlapping interface elements.
-
-### 06-06 — Shadow alignment issues addressed
-
-Adjusted the 3D shadow casting logic after shadows appeared offset from their source buildings. The update focused on keeping shadows tied more closely to the actual building footprints so they no longer appeared to come from unrelated houses or stretch incorrectly across roads.
-
-### 06-06 — Full replacement files prepared
-
-Prepared complete downloadable replacement files using the same filenames as the existing project files. This made the updates easier to apply through GitHub Desktop while preserving the project structure and avoiding unnecessary file renaming.
 
 ### 06-08 — Sunlight heatmap options researched
 
