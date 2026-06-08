@@ -158,7 +158,8 @@ Prepared downloadable update packages containing either the full updated site or
 
 Identified that the 3D shadow casting layer was not aligning correctly with buildings and appeared offset from the actual structures. This showed that the shadow system needed stronger coordinate handling and more accurate building-based projection.
 
-<img width="1110" height="586" alt="Screenshot 2026-06-06 135755" src="https://github.com/user-attachments/assets/2f36af9a-168f-4d72-818e-992a8bf402e4" />
+<img width="574" height="526" alt="Screenshot 2026-06-06 135755" src="https://github.com/user-attachments/assets/f86aa418-bef4-4fad-a211-f1de0197ed11" />
+
 
 ### 06-06 — Satellite view separated from 3D shadow mode
 
