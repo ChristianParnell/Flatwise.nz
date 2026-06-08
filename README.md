@@ -175,9 +175,15 @@ Updated the shadow rendering behaviour so overlapping building shadows do not st
 
 Improved the “write your own review” panel so it looked more professional and easier to use. The rating sliders were reorganised into cleaner rows, score labels were made easier to read, and the form styling was adjusted to feel more polished and trustworthy.
 
+<img width="1100" height="739" alt="Screenshot 2026-06-08 201848" src="https://github.com/user-attachments/assets/054906ab-7892-470d-935d-fcf5e1dc2690" />
+
+
 ### 06-06 — 3D shadow controls simplified
 
 Cleaned up the map mode controls so the 3D shadow system is easier to understand and no longer overlaps with unrelated sunlight tools. Inactive sunlight modes were removed from this view so the interface could focus on the working 3D shadow cast feature.
+
+<img width="265" height="316" alt="Screenshot 2026-06-08 201959" src="https://github.com/user-attachments/assets/60d80dd4-4323-4bec-85ff-5699453708e6" />
+
 
 ### 06-06 — Sunlight estimate panel removed from 3D mode
 
