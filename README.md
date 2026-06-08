@@ -145,6 +145,7 @@ Improved the 3D building loader so it no longer fails when a council or LINZ bui
 ### 06-05 — 3D control panel behaviour improved
 
 Updated the 3D/shadow interface so its controls only appear when the 3D/shadow mode is selected. This reduced interface clutter, prevented controls from clipping into other map options, and made the standard map view cleaner.
+
 <img width="232" height="214" alt="Screenshot 2026-06-05 214911" src="https://github.com/user-attachments/assets/b1607743-1907-498b-98ea-db805ac0f3bc" />
 
 
