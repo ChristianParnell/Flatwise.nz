@@ -168,6 +168,9 @@ Separated realistic satellite imagery into its own map mode instead of forcing i
 
 Updated the shadow rendering behaviour so overlapping building shadows do not stack into darker patches. Intersecting shadows now behave as one unified tint layer, making the shadow cast cleaner, easier to read, and more realistic.
 
+<img width="761" height="489" alt="Screenshot 2026-06-08 201609" src="https://github.com/user-attachments/assets/7741cf40-e187-4a16-a624-de01fd036e59" />
+
+
 ### 06-06 — Review form UI redesigned
 
 Improved the “write your own review” panel so it looked more professional and easier to use. The rating sliders were reorganised into cleaner rows, score labels were made easier to read, and the form styling was adjusted to feel more polished and trustworthy.
