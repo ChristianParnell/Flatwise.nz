@@ -1,5 +1,5 @@
 const FLATWISE_CONFIG = {
-  enableStreetView: false,
+  enableStreetView: true,
   googleStreetViewApiKey: "AIzaSyCovK8j_rIRwhJyb0pwNzaVgnMaqD_Cuoc",
 
   map: {
